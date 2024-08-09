@@ -1,0 +1,25 @@
+{
+  "name": "timecrash",
+  "version": "1.0.0",
+  "description": "Tevékenység trackelő alkalmazás",
+  "main": "./dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/node": "^22.0.3",
+    "electron-rebuild": "^3.2.9",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "electron": "^31.3.1",
+    "get-windows": "^9.1.1",
+    "sqlite3": "^5.1.7"
+  }
+}

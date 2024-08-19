@@ -7,14 +7,26 @@ window.api.getSettings().then((settings) => {
         loadSettingsUI(settings);
     }
 });
-document.getElementById('saveSettings')?.addEventListener('click', () => {
+window.api.getAppUsage().then((appUsage) => {
+    const appUsageList = document.getElementById('app-usage-list');
+    if (appUsageList) {
+        appUsageList.innerHTML = appUsage.map(app => `
+            <li>
+                App: ${app.name}, ExePath: ${app.exePath}, Duration: ${app.duration}ms, Date: ${app.date}
+            </li>
+        `).join('');
+    }
+}).catch(error => {
+    console.error('Failed to get app usage:', error);
+});
+document.getElementById('saveInitialSettings')?.addEventListener('click', () => {
     const trackWindowTitles = document.getElementById('trackWindowTitles').checked;
     const trackExecutablePaths = document.getElementById('trackExecutablePaths').checked;
-    window.api.updateSettings({
+    const settings = {
         trackWindowTitles,
         trackExecutablePaths
-    });
-    alert('Settings saved!');
+    };
+    window.api.saveSettings(settings);
 });
 function loadSettingsUI(settings) {
     document.getElementById('trackWindowTitles').checked = settings.trackWindowTitles;

@@ -1,11 +1,11 @@
-import { ipcMain } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import sqlite3 from 'sqlite3';
 import { activeWindow } from 'get-windows';
 import ps from 'ps-node';
 import path from 'path';
 import { __dirname } from './utils.js';
 const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
-let currentApp;
+let currentApp = null;
 let appUsage = [];
 let privacySettings = {
     trackWindowTitles: true,
@@ -13,30 +13,31 @@ let privacySettings = {
 };
 export async function createDatabase() {
     db.run(`CREATE TABLE IF NOT EXISTS activity (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        app_name TEXT,
-        exe_path TEXT,
-        duration INTEGER,
-        date TEXT
-    )`, (err) => {
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_name TEXT,
+            exe_path TEXT,
+            duration INTEGER,
+            date TEXT
+        )`, (err) => {
         if (err) {
             console.error('Failed to create database:', err);
         }
     });
 }
 function logActivity(appName, exePath, duration, date) {
+    console.log(`Logging activity: App=${appName}, ExePath=${exePath}, Duration=${duration}ms, Date=${date}`);
     return new Promise((resolve, reject) => {
         db.run(`INSERT INTO activity (app_name, exe_path, duration, date) VALUES (?, ?, ?, ?)`, [appName, exePath, duration, date], function (err) {
             if (err) {
                 reject(err);
             }
             else {
+                console.log(`Activity logged successfully with ID: ${this.lastID}`);
                 resolve({ id: this.lastID });
             }
         });
     });
 }
-// Load settings from local storage
 export function loadSettingsFromLocalStorage(mainWindow) {
     mainWindow.webContents.executeJavaScript(`localStorage.getItem('privacySettings');`).then((result) => {
         if (result) {
@@ -48,9 +49,14 @@ export function loadSettingsFromLocalStorage(mainWindow) {
         }
     });
 }
-// Save settings to local storage
 function saveSettingsToLocalStorage(mainWindow, settings) {
-    mainWindow.webContents.executeJavaScript(`localStorage.setItem('privacySettings', '${JSON.stringify(settings)}');`);
+    mainWindow.webContents.executeJavaScript(`localStorage.setItem('privacySettings', '${JSON.stringify(settings)}');`)
+        .then(() => {
+        console.log('Settings saved to local storage:', settings);
+    })
+        .catch(err => {
+        console.error('Failed to save settings to local storage:', err);
+    });
 }
 async function getProcessExePath(pid) {
     return new Promise((resolve, reject) => {
@@ -68,6 +74,11 @@ async function getProcessExePath(pid) {
 ipcMain.on('update-settings', (event, newSettings) => {
     privacySettings = { ...privacySettings, ...newSettings };
     console.log('Updated Privacy Settings:', privacySettings);
+    console.log(`Settings Updated: trackWindowTitles=${newSettings.trackWindowTitles}, trackExecutablePaths=${newSettings.trackExecutablePaths}`);
+    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    if (mainWindow) {
+        saveSettingsToLocalStorage(mainWindow, privacySettings);
+    }
 });
 ipcMain.handle('log-activity', async (event, appName, exePath, duration, date) => {
     try {
@@ -83,37 +94,40 @@ ipcMain.handle('get-app-usage', async () => {
     return appUsage;
 });
 export async function startActivityTracking(mainWindow) {
+    const browserNames = ["chrome.exe", "opera.exe", "firefox.exe", "msedge.exe"];
     setInterval(async () => {
         try {
             const activeWindowData = await activeWindow();
             if (activeWindowData) {
-                const appName = activeWindowData.title;
                 const pid = activeWindowData.owner.processId;
                 const exePath = await getProcessExePath(pid);
-                if (privacySettings.trackWindowTitles && privacySettings.trackExecutablePaths) {
-                    if (currentApp && (currentApp.name !== appName || currentApp.exePath !== exePath)) {
-                        const duration = Date.now() - currentApp.startTime;
-                        const date = new Date().toISOString();
+                const appName = browserNames.includes(exePath.toLowerCase()) ? activeWindowData.owner.name : activeWindowData.title;
+                if (currentApp && (currentApp.name !== appName || currentApp.exePath !== exePath)) {
+                    const duration = Date.now() - currentApp.startTime;
+                    const date = new Date().toISOString();
+                    setTimeout(async () => {
                         await logActivity(currentApp.name, currentApp.exePath, duration, date);
-                        const existingApp = appUsage.find((app) => app.name === currentApp.name && app.exePath === currentApp.exePath);
-                        if (existingApp) {
-                            existingApp.duration += duration;
-                        }
-                        else {
-                            appUsage.push({ name: currentApp.name, exePath: currentApp.exePath, duration });
-                        }
-                        currentApp = { name: appName, exePath, startTime: Date.now() };
+                    }, 500);
+                    const existingApp = appUsage.find((app) => app.name === currentApp.name && app.exePath === currentApp.exePath);
+                    if (existingApp) {
+                        existingApp.duration += duration;
                     }
-                    else if (!currentApp) {
-                        currentApp = { name: appName, exePath, startTime: Date.now() };
+                    else {
+                        appUsage.push({ name: currentApp.name, exePath: currentApp.exePath, duration });
                     }
+                    currentApp = { name: appName, exePath, startTime: Date.now() };
+                    console.log(`Switched to new app: App=${appName}, ExePath=${exePath}, StartTime=${currentApp.startTime}`);
+                }
+                else if (!currentApp) {
+                    currentApp = { name: appName, exePath, startTime: Date.now() };
+                    console.log(`Started tracking app: App=${appName}, ExePath=${exePath}, StartTime=${currentApp.startTime}`);
                 }
             }
         }
         catch (error) {
             console.error('Failed to track activity:', error);
         }
-    }, 1000);
+    }, 5000);
 }
 export function logDatabaseContents() {
     db.all(`SELECT * FROM activity`, [], (err, rows) => {

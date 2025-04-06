@@ -1,4 +1,3 @@
-// src/index.ts
 import { app, BrowserWindow } from 'electron';
 import { createWindow, createTray } from './main.js';
 import { createDatabase, startActivityTracking, logDatabaseContents, loadSettingsFromLocalStorage } from './tracker.js';
@@ -9,7 +8,6 @@ app.whenReady().then(async () => {
     await createDatabase();
     loadSettingsFromLocalStorage(mainWindow);
     await startActivityTracking(mainWindow);
-    // Log database contents as a test
     logDatabaseContents();
 });
 app.on('window-all-closed', () => {

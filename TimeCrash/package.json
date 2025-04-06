@@ -18,6 +18,7 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6",
     "electron": "^31.3.1",
     "get-windows": "^9.1.1",
     "ps-node": "^0.1.6",

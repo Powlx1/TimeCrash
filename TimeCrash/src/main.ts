@@ -4,21 +4,29 @@ import path from 'path';
 import { __dirname } from './utils.js';
 
 let isQuitting = false;
+let tray: Tray | null = null;
 
 export async function createWindow(): Promise<BrowserWindow> {
+  console.log('Main __dirname:', __dirname); 
+  const preloadPath = path.join(__dirname, 'preload.js'); 
+  console.log('Preload path:', preloadPath);
+
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 600,
+    width: 1000,
+    height: 700,
+    show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
     },
-    show: false,
   });
 
-  await mainWindow.loadFile(path.join(__dirname, '../index.html'));
-  mainWindow.on('ready-to-show', () => mainWindow.show());
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  await mainWindow.loadFile(path.join(__dirname, '../index.html')); 
 
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -31,9 +39,14 @@ export async function createWindow(): Promise<BrowserWindow> {
 }
 
 export function createTray(mainWindow: BrowserWindow): void {
-  const tray = new Tray(path.join(__dirname, 'icon.png'));
+  tray = new Tray(path.join(__dirname, 'icon.png')); // dist/icon.png
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show App', click: () => mainWindow.show() },
+    {
+      label: 'Show App',
+      click: () => {
+        mainWindow.show();
+      },
+    },
     {
       label: 'Quit',
       click: () => {
@@ -50,6 +63,7 @@ export function createTray(mainWindow: BrowserWindow): void {
       },
     },
   ]);
+
   tray.setContextMenu(contextMenu);
   tray.setToolTip('Activity Tracker');
 

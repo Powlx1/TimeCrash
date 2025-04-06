@@ -1,0 +1,41 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 2em;
+    background-color: #f0f2f5;
+}
+
+#app-stats {
+    margin-top: 2em;
+}
+
+.app-card {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 1em;
+    margin-bottom: 1em;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.app-card h4 {
+    margin: 0 0 0.5em 0;
+}
+
+.progress-bar {
+    width: 100%;
+    background: #e0e0e0;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 0.5em;
+}
+
+.active-bar {
+    background: #4caf50;
+    height: 100%;
+    transition: width 0.3s ease-in-out;
+}
+
+p {
+    margin: 0.25em 0;
+}

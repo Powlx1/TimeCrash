@@ -1,18 +1,41 @@
-<!-- index.html -->
-<div>
-  <h2>Privacy Settings</h2>
-  <label>
-      <input type="checkbox" id="trackWindowTitles" checked />
-      Track Window Titles
-  </label><br>
-  <label>
-      <input type="checkbox" id="trackExecutablePaths" checked />
-      Track Executable Paths
-  </label><br>
-  <button id="saveSettings">Save Settings</button>
-  <div id="activity-log">
-    <h2>Application Usage Data</h2>
-    <ul id="app-usage-list"></ul>
-  </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeCrash - App Usage Tracker</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>TimeCrash: Application Usage Tracker</h1>
 
-</div>
+        <section id="privacy-settings-modal">
+            <h2>Privacy Settings</h2>
+            <label>
+                <input type="checkbox" id="trackWindowTitles" checked />
+                Track Window Titles
+            </label><br>
+            <label>
+                <input type="checkbox" id="trackExecutablePaths" checked />
+                Track Executable Paths
+            </label><br>
+            <button id="saveInitialSettings">Save Settings</button>
+        </section>
+
+        <div id="activity-log">
+            <h2>Application Usage Data</h2>
+            <ul id="app-usage-list"></ul>
+        </div>
+
+        <section id="app-visual">
+            <h2>Visual Summary</h2>
+            <div id="app-stats">
+              <script src="./dist/renderer/main.js"></script>
+            </div>
+        </section>
+    </div>
+
+</body>
+</html>

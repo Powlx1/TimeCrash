@@ -123,55 +123,51 @@ export async function startActivityTracking(mainWindow) {
     setInterval(async () => {
         try {
             const activeWin = await activeWindow();
-            if (!activeWin || !activeWin.owner)
-                return;
-            const { processId: pid, path: exePath } = activeWin.owner;
-            const exeName = path.basename(exePath).toLowerCase();
-            const appName = activeWin.title;
-            // Only track user apps
-            if (!userAppExes.some(exe => exeName === exe)) {
-                return;
-            }
-            let app = trackedApps.find((a) => a.pid === pid);
-            const currentTime = Date.now();
-            if (!app) {
-                app = { name: appName, exePath, pid, openStartTime: currentTime, totalOpenDuration: 0, totalActiveDuration: 0 };
-                trackedApps.push(app);
-                console.log(`New app opened: ${appName}, PID=${pid}, ExePath=${exePath}`);
-            }
-            app.totalOpenDuration = currentTime - app.openStartTime;
-            if (await isMouseInWindow(activeWin)) {
-                if (!app.activeStartTime) {
-                    app.activeStartTime = currentTime;
-                    console.log(`App became active: ${appName}`);
+            if (activeWin && activeWin.owner) {
+                const { processId: pid, name, path: exePath } = activeWin.owner;
+                let app = trackedApps.find((a) => a.pid === pid);
+                const currentTime = Date.now();
+                if (!app) {
+                    app = { name, exePath, pid, openStartTime: currentTime, totalOpenDuration: 0, totalActiveDuration: 0 };
+                    trackedApps.push(app);
+                    console.log(`New app opened: ${name}, PID=${pid}, ExePath=${exePath}`);
                 }
-                app.totalActiveDuration += currentTime - (app.activeStartTime || currentTime);
-                app.activeStartTime = currentTime;
+                app.totalOpenDuration = currentTime - app.openStartTime;
+                if (await isMouseInWindow(activeWin)) {
+                    if (!app.activeStartTime) {
+                        app.activeStartTime = currentTime;
+                        console.log(`App became active: ${name}`);
+                    }
+                    app.totalActiveDuration += currentTime - (app.activeStartTime || currentTime);
+                    app.activeStartTime = currentTime;
+                }
+                else if (app.activeStartTime) {
+                    app.activeStartTime = undefined;
+                }
+                const date = new Date().toISOString();
+                queueActivity(app.name, app.exePath, app.totalOpenDuration, date, 'open');
+                if (app.totalActiveDuration > 0) {
+                    queueActivity(app.name, app.exePath, app.totalActiveDuration, date, 'active');
+                }
             }
-            else if (app.activeStartTime) {
-                app.activeStartTime = undefined;
-            }
-            const date = new Date().toISOString();
-            queueActivity(app.name, app.exePath, app.totalOpenDuration, date, 'open');
-            if (app.totalActiveDuration > 0) {
-                queueActivity(app.name, app.exePath, app.totalActiveDuration, date, 'active');
-            }
-            // Clean up apps inactive for over 1 minute
-            trackedApps = trackedApps.filter(app => app.pid === pid || (Date.now() - app.openStartTime < 60000));
         }
         catch (error) {
-            console.error('Error during activity tracking:', error);
+            console.error('Error while tracking activity:', error);
         }
-    }, 5000); // 5 seconds to reduce load
+    }, 1000); // Track every 5 seconds
+    // Flush activity queue to DB every 30 seconds
     setInterval(async () => {
-        if (activityQueue.length > 0) {
-            const batch = activityQueue;
-            activityQueue = [];
-            for (const { appName, exePath, duration, date, type } of batch) {
-                await logActivity(appName, exePath, duration, date, type);
+        const activitiesToLog = [...activityQueue];
+        activityQueue = [];
+        for (const activity of activitiesToLog) {
+            try {
+                await logActivity(activity.appName, activity.exePath, activity.duration, activity.date, activity.type);
+            }
+            catch (err) {
+                console.error('Error logging queued activity:', err);
             }
         }
-    }, 300000); // 5 minutes
+    }, 30000);
 }
 export function logDatabaseContents() {
     db.all(`SELECT * FROM activity`, [], (err, rows) => {

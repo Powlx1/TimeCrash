@@ -1,9 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import sqlite3 from 'sqlite3';
-import { activeWindow } from 'get-windows';
 import path from 'path';
-import { __dirname } from './utils.js';
-import { mouse, Region } from '@nut-tree-fork/nut-js';
+import { mouse } from '@nut-tree-fork/nut-js';
 
 const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
 
@@ -24,34 +22,28 @@ let privacySettings = {
     trackExecutablePaths: true
 };
 
-const userAppExes = [
-    'spotify.exe',
-    'clickerheroes.exe', // Adjust if needed
-    'code.exe',         // VS Code
-    'notepad.exe',
-    'chrome.exe',
-    'firefox.exe',
-    'msedge.exe',
-    'opera.exe',
-    // Add more as needed
-];
-
 export async function createDatabase(): Promise<void> {
-    db.run(
-        `CREATE TABLE IF NOT EXISTS activity (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            app_name TEXT,
-            exe_path TEXT,
-            duration INTEGER,
-            date TEXT,
-            type TEXT
-        )`,
-        (err) => {
-            if (err) {
-                console.error('Failed to create database:', err);
+    return new Promise((resolve, reject) => {
+        db.run(
+            `CREATE TABLE IF NOT EXISTS activity (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_name TEXT,
+                exe_path TEXT,
+                duration INTEGER,
+                date TEXT,
+                type TEXT
+            )`,
+            (err) => {
+                if (err) {
+                    console.error('Failed to create database:', err);
+                    reject(err);
+                } else {
+                    console.log('Database table created or already exists');
+                    resolve();
+                }
             }
-        }
-    );
+        );
+    });
 }
 
 function logActivity(appName: string, exePath: string, duration: number, date: string, type: 'open' | 'active'): Promise<{ id: number }> {
@@ -128,14 +120,22 @@ ipcMain.handle('log-activity', async (event, appName: string, exePath: string, d
 });
 
 ipcMain.handle('get-app-stats', async () => {
-    const appStats = trackedApps.map(app => ({
-        name: app.name,
-        exePath: app.exePath,
-        totalOpenDuration: app.totalOpenDuration,
-        totalActiveDuration: app.totalActiveDuration
-    }));
-    console.log('Returning app stats:', appStats);
-    return appStats;
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT app_name AS name, exe_path AS exePath, 
+                   SUM(CASE WHEN type = 'open' THEN duration ELSE 0 END) AS totalOpenDuration,
+                   SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
+            FROM activity
+            GROUP BY exe_path
+        `, [], (err, rows) => {
+            if (err) {
+                console.error('Error fetching app stats:', err);
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
 });
 
 ipcMain.handle('get-settings', async () => {
@@ -151,6 +151,18 @@ ipcMain.handle('save-settings', async (event, settings: { trackWindowTitles: boo
 });
 
 export async function startActivityTracking(mainWindow: BrowserWindow): Promise<void> {
+    console.log('Attempting to import get-windows');
+    let activeWindow;
+    try {
+        // Force dynamic import to avoid CommonJS require transformation
+        const getWindowsModule = await eval('import("get-windows")');
+        activeWindow = getWindowsModule.activeWindow;
+        console.log('get-windows imported successfully');
+    } catch (error) {
+        console.error('Failed to import get-windows:', error);
+        return; // Exit to allow app to continue without tracking
+    }
+
     setInterval(async () => {
         try {
             const activeWin = await activeWindow();
@@ -187,9 +199,8 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
         } catch (error) {
             console.error('Error while tracking activity:', error);
         }
-    }, 1000); // Track every 5 seconds
+    }, 1000);
 
-    // Flush activity queue to DB every 30 seconds
     setInterval(async () => {
         const activitiesToLog = [...activityQueue];
         activityQueue = [];

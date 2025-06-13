@@ -1,5 +1,5 @@
-declare module "*.mjs"
-declare module "tracker.ts"
+declare module "*.mjs";
+declare module "tracker.ts";
 declare module 'ps-node' {
     interface Process {
         pid: number;
@@ -19,4 +19,20 @@ declare module '@nut-tree-fork/nut-js' {
         width: number;
         height: number;
     }
+}
+
+declare module 'get-windows' {
+    export function activeWindow(): Promise<{
+        owner: {
+            processId: number;
+            name: string;
+            path: string;
+        };
+        bounds: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+        };
+    }>;
 }

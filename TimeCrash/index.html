@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
     <title>TimeCrash - App Usage Tracker</title>
     <link rel="stylesheet" href="./styles.css">
 </head>
@@ -11,7 +12,12 @@
     <div class="container">
         <h1>TimeCrash: Application Usage Tracker</h1>
 
-        <section id="privacy-settings-modal">
+        <div class="tab">
+            <button class="tablinks active" data-tab="Settings">Settings</button>
+            <button class="tablinks" data-tab="Tracking">Tracking</button>
+        </div>
+
+        <div id="Settings" class="tabcontent active">
             <h2>Privacy Settings</h2>
             <label>
                 <input type="checkbox" id="trackWindowTitles" checked />
@@ -22,20 +28,14 @@
                 Track Executable Paths
             </label><br>
             <button id="saveInitialSettings">Save Settings</button>
-        </section>
-
-        <div id="activity-log">
-            <h2>Application Usage Data</h2>
-            <ul id="app-usage-list"></ul>
         </div>
 
-        <section id="app-visual">
-            <h2>Visual Summary</h2>
-            <div id="app-stats">
-              <script src="./dist/renderer/main.js"></script>
-            </div>
-        </section>
+        <div id="Tracking" class="tabcontent">
+            <h2>Application Usage</h2>
+            <ul id="app-stats"></ul>
+        </div>
     </div>
 
+    <script src="./dist/renderer/main.js"></script>
 </body>
 </html>

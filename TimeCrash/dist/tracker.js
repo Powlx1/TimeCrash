@@ -1,39 +1,42 @@
-import { ipcMain, BrowserWindow } from 'electron';
-import sqlite3 from 'sqlite3';
-import { activeWindow } from 'get-windows';
-import path from 'path';
-import { __dirname } from './utils.js';
-import { mouse } from '@nut-tree-fork/nut-js';
-const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createDatabase = createDatabase;
+exports.loadSettingsFromLocalStorage = loadSettingsFromLocalStorage;
+exports.startActivityTracking = startActivityTracking;
+exports.logDatabaseContents = logDatabaseContents;
+const electron_1 = require("electron");
+const sqlite3_1 = __importDefault(require("sqlite3"));
+const path_1 = __importDefault(require("path"));
+const nut_js_1 = require("@nut-tree-fork/nut-js");
+const db = new sqlite3_1.default.Database(path_1.default.join(__dirname, 'activity_tracker.db'));
 let trackedApps = [];
 let activityQueue = [];
 let privacySettings = {
     trackWindowTitles: true,
     trackExecutablePaths: true
 };
-const userAppExes = [
-    'spotify.exe',
-    'clickerheroes.exe', // Adjust if needed
-    'code.exe', // VS Code
-    'notepad.exe',
-    'chrome.exe',
-    'firefox.exe',
-    'msedge.exe',
-    'opera.exe',
-    // Add more as needed
-];
-export async function createDatabase() {
-    db.run(`CREATE TABLE IF NOT EXISTS activity (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            app_name TEXT,
-            exe_path TEXT,
-            duration INTEGER,
-            date TEXT,
-            type TEXT
-        )`, (err) => {
-        if (err) {
-            console.error('Failed to create database:', err);
-        }
+async function createDatabase() {
+    return new Promise((resolve, reject) => {
+        db.run(`CREATE TABLE IF NOT EXISTS activity (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_name TEXT,
+                exe_path TEXT,
+                duration INTEGER,
+                date TEXT,
+                type TEXT
+            )`, (err) => {
+            if (err) {
+                console.error('Failed to create database:', err);
+                reject(err);
+            }
+            else {
+                console.log('Database table created or already exists');
+                resolve();
+            }
+        });
     });
 }
 function logActivity(appName, exePath, duration, date, type) {
@@ -53,7 +56,7 @@ function logActivity(appName, exePath, duration, date, type) {
 function queueActivity(appName, exePath, duration, date, type) {
     activityQueue.push({ appName, exePath, duration, date, type });
 }
-export function loadSettingsFromLocalStorage(mainWindow) {
+function loadSettingsFromLocalStorage(mainWindow) {
     mainWindow.webContents.executeJavaScript(`localStorage.getItem('privacySettings');`).then((result) => {
         if (result) {
             privacySettings = JSON.parse(result);
@@ -74,22 +77,22 @@ function saveSettingsToLocalStorage(mainWindow, settings) {
     });
 }
 async function isMouseInWindow(windowData) {
-    const mousePos = await mouse.getPosition();
+    const mousePos = await nut_js_1.mouse.getPosition();
     const bounds = windowData.bounds;
     return (mousePos.x >= bounds.x &&
         mousePos.x <= bounds.x + bounds.width &&
         mousePos.y >= bounds.y &&
         mousePos.y <= bounds.y + bounds.height);
 }
-ipcMain.on('update-settings', (event, newSettings) => {
+electron_1.ipcMain.on('update-settings', (event, newSettings) => {
     privacySettings = { ...privacySettings, ...newSettings };
     console.log('Updated Privacy Settings:', privacySettings);
-    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    const mainWindow = electron_1.BrowserWindow.fromWebContents(event.sender);
     if (mainWindow) {
         saveSettingsToLocalStorage(mainWindow, privacySettings);
     }
 });
-ipcMain.handle('log-activity', async (event, appName, exePath, duration, date, type) => {
+electron_1.ipcMain.handle('log-activity', async (event, appName, exePath, duration, date, type) => {
     try {
         const result = await logActivity(appName, exePath, duration, date, type);
         return result;
@@ -99,27 +102,48 @@ ipcMain.handle('log-activity', async (event, appName, exePath, duration, date, t
         throw err;
     }
 });
-ipcMain.handle('get-app-stats', async () => {
-    const appStats = trackedApps.map(app => ({
-        name: app.name,
-        exePath: app.exePath,
-        totalOpenDuration: app.totalOpenDuration,
-        totalActiveDuration: app.totalActiveDuration
-    }));
-    console.log('Returning app stats:', appStats);
-    return appStats;
+electron_1.ipcMain.handle('get-app-stats', async () => {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT app_name AS name, exe_path AS exePath, 
+                   SUM(CASE WHEN type = 'open' THEN duration ELSE 0 END) AS totalOpenDuration,
+                   SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
+            FROM activity
+            GROUP BY exe_path
+        `, [], (err, rows) => {
+            if (err) {
+                console.error('Error fetching app stats:', err);
+                reject(err);
+            }
+            else {
+                resolve(rows);
+            }
+        });
+    });
 });
-ipcMain.handle('get-settings', async () => {
+electron_1.ipcMain.handle('get-settings', async () => {
     return privacySettings;
 });
-ipcMain.handle('save-settings', async (event, settings) => {
+electron_1.ipcMain.handle('save-settings', async (event, settings) => {
     privacySettings = settings;
-    const mainWindow = BrowserWindow.fromWebContents(event.sender);
+    const mainWindow = electron_1.BrowserWindow.fromWebContents(event.sender);
     if (mainWindow) {
         saveSettingsToLocalStorage(mainWindow, settings);
     }
 });
-export async function startActivityTracking(mainWindow) {
+async function startActivityTracking(mainWindow) {
+    console.log('Attempting to import get-windows');
+    let activeWindow;
+    try {
+        // Force dynamic import to avoid CommonJS require transformation
+        const getWindowsModule = await eval('import("get-windows")');
+        activeWindow = getWindowsModule.activeWindow;
+        console.log('get-windows imported successfully');
+    }
+    catch (error) {
+        console.error('Failed to import get-windows:', error);
+        return; // Exit to allow app to continue without tracking
+    }
     setInterval(async () => {
         try {
             const activeWin = await activeWindow();
@@ -154,8 +178,7 @@ export async function startActivityTracking(mainWindow) {
         catch (error) {
             console.error('Error while tracking activity:', error);
         }
-    }, 1000); // Track every 5 seconds
-    // Flush activity queue to DB every 30 seconds
+    }, 1000);
     setInterval(async () => {
         const activitiesToLog = [...activityQueue];
         activityQueue = [];
@@ -169,7 +192,7 @@ export async function startActivityTracking(mainWindow) {
         }
     }, 30000);
 }
-export function logDatabaseContents() {
+function logDatabaseContents() {
     db.all(`SELECT * FROM activity`, [], (err, rows) => {
         if (err) {
             console.error('Error fetching data from database:', err);

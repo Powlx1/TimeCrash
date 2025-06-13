@@ -1,11 +1,12 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 // src/preload.ts
-const { ipcRenderer } = require('electron');
-console.log('Preload script loaded successfully');
-window.api = {
+const electron_1 = require("electron");
+console.log('!!! Preload script executing !!!');
+electron_1.contextBridge.exposeInMainWorld('api', {
     logActivity: (appName, exePath, duration, date, type) => {
         console.log('Invoking log-activity:', { appName, exePath, duration, date, type });
-        return ipcRenderer.invoke('log-activity', appName, exePath, duration, date, type)
+        return electron_1.ipcRenderer.invoke('log-activity', appName, exePath, duration, date, type)
             .catch(error => {
             console.error('Error in logActivity:', error);
             throw error;
@@ -13,7 +14,7 @@ window.api = {
     },
     getAppStats: () => {
         console.log('Invoking get-app-stats');
-        return ipcRenderer.invoke('get-app-stats')
+        return electron_1.ipcRenderer.invoke('get-app-stats')
             .catch(error => {
             console.error('Error in getAppStats:', error);
             throw error;
@@ -21,11 +22,11 @@ window.api = {
     },
     updateSettings: (settings) => {
         console.log('Sending update-settings:', settings);
-        ipcRenderer.send('update-settings', settings);
+        electron_1.ipcRenderer.send('update-settings', settings);
     },
     getSettings: () => {
         console.log('Invoking get-settings');
-        return ipcRenderer.invoke('get-settings')
+        return electron_1.ipcRenderer.invoke('get-settings')
             .catch(error => {
             console.error('Error in getSettings:', error);
             throw error;
@@ -33,11 +34,11 @@ window.api = {
     },
     saveSettings: (settings) => {
         console.log('Invoking save-settings:', settings);
-        return ipcRenderer.invoke('save-settings', settings)
+        return electron_1.ipcRenderer.invoke('save-settings', settings)
             .then(() => console.log('Settings saved successfully'))
             .catch(error => {
             console.error('Error in saveSettings:', error);
             throw error;
         });
     }
-};
+});

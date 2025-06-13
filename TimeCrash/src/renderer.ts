@@ -1,4 +1,3 @@
-// src/renderer.ts
 interface PrivacySettings {
     trackWindowTitles: boolean;
     trackExecutablePaths: boolean;
@@ -60,27 +59,91 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => console.error('Failed to get app stats:', error));
     }
 
-    updateStats();
-    setInterval(updateStats, 5000);
+    function openTab(tabName: string) {
+        console.log(`Opening tab: ${tabName}`);
+        const tabContents = document.querySelectorAll('.tabcontent');
+        const tabLinks = document.querySelectorAll('.tablinks');
+
+        tabContents.forEach(content => content.classList.remove('active'));
+        tabLinks.forEach(link => link.classList.remove('active'));
+
+        const targetContent = document.getElementById(tabName);
+        const targetLink = document.querySelector(`.tablinks[data-tab="${tabName}"]`);
+
+        if (targetContent && targetLink) {
+            targetContent.classList.add('active');
+            targetLink.classList.add('active');
+            if (tabName === 'Tracking') {
+                console.log('Dispatching loadTracking event');
+                window.dispatchEvent(new Event('loadTracking'));
+            }
+        } else {
+            console.error(`Tab content or link not found for: ${tabName}`);
+        }
+    }
+
+    let intervalId: NodeJS.Timeout | null = null;
+
+    window.addEventListener('loadTracking', () => {
+        console.log("Tracking tab opened, starting stats update");
+        updateStats(); // Initial load
+        intervalId = setInterval(updateStats, 5000);
+    });
+
+    const tabLinks = document.querySelectorAll('.tablinks');
+    if (tabLinks.length === 0) {
+        console.error("No tablinks found in DOM");
+    }
+    tabLinks.forEach(button => {
+        button.addEventListener('click', (evt: Event) => {
+            const target = evt.currentTarget as HTMLElement;
+            const tabName = target.getAttribute('data-tab');
+            console.log(`Tab clicked: ${tabName}`);
+            if (tabName) {
+                openTab(tabName);
+            }
+            if (tabName !== 'Tracking' && intervalId) {
+                console.log("Leaving Tracking tab, stopping stats update");
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+        });
+    });
+
+    // Initialize with Settings tab open
+    openTab('Settings');
 
     window.api.getSettings().then((settings: PrivacySettings) => {
         if (!settings) {
-            document.getElementById('privacy-settings-modal')?.setAttribute('style', 'display:block;');
+            console.log("No settings found, showing Settings tab");
+            document.getElementById('Settings')?.classList.add('active');
         } else {
             loadSettingsUI(settings);
         }
     });
 
-    document.getElementById('saveInitialSettings')?.addEventListener('click', () => {
-        const trackWindowTitles = (document.getElementById('trackWindowTitles') as HTMLInputElement).checked;
-        const trackExecutablePaths = (document.getElementById('trackExecutablePaths') as HTMLInputElement).checked;
+    const saveButton = document.getElementById('saveInitialSettings');
+    if (saveButton) {
+        saveButton.addEventListener('click', () => {
+            console.log("Saving settings");
+            const trackWindowTitles = (document.getElementById('trackWindowTitles') as HTMLInputElement).checked;
+            const trackExecutablePaths = (document.getElementById('trackExecutablePaths') as HTMLInputElement).checked;
 
-        const settings: PrivacySettings = { trackWindowTitles, trackExecutablePaths };
-        window.api.saveSettings(settings);
-    });
+            const settings: PrivacySettings = { trackWindowTitles, trackExecutablePaths };
+            window.api.saveSettings(settings);
+        });
+    } else {
+        console.error("saveInitialSettings button not found");
+    }
 
     function loadSettingsUI(settings: PrivacySettings) {
-        (document.getElementById('trackWindowTitles') as HTMLInputElement).checked = settings.trackWindowTitles;
-        (document.getElementById('trackExecutablePaths') as HTMLInputElement).checked = settings.trackExecutablePaths;
+        const titleCheckbox = document.getElementById('trackWindowTitles') as HTMLInputElement;
+        const pathCheckbox = document.getElementById('trackExecutablePaths') as HTMLInputElement;
+        if (titleCheckbox && pathCheckbox) {
+            titleCheckbox.checked = settings.trackWindowTitles;
+            pathCheckbox.checked = settings.trackExecutablePaths;
+        } else {
+            console.error("Settings checkboxes not found");
+        }
     }
 });

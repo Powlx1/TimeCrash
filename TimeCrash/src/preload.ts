@@ -1,10 +1,19 @@
 // src/preload.ts
-const { ipcRenderer } = require('electron');
+import { contextBridge, ipcRenderer } from 'electron';
 
-console.log('Preload script loaded successfully');
+console.log('!!! Preload script executing !!!');
 
-window.api = {
-    logActivity: (appName, exePath, duration, date, type) => {
+// Use global.d.ts types if available
+type ActivityType = 'open' | 'active';
+
+contextBridge.exposeInMainWorld('api', {
+    logActivity: (
+        appName: string,
+        exePath: string,
+        duration: number,
+        date: string,
+        type: ActivityType
+    ): Promise<{ id: number }> => {
         console.log('Invoking log-activity:', { appName, exePath, duration, date, type });
         return ipcRenderer.invoke('log-activity', appName, exePath, duration, date, type)
             .catch(error => {
@@ -12,7 +21,8 @@ window.api = {
                 throw error;
             });
     },
-    getAppStats: () => {
+
+    getAppStats: (): Promise<TrackedApp[]> => {
         console.log('Invoking get-app-stats');
         return ipcRenderer.invoke('get-app-stats')
             .catch(error => {
@@ -20,11 +30,13 @@ window.api = {
                 throw error;
             });
     },
-    updateSettings: (settings) => {
+
+    updateSettings: (settings: PrivacySettings): void => {
         console.log('Sending update-settings:', settings);
         ipcRenderer.send('update-settings', settings);
     },
-    getSettings: () => {
+
+    getSettings: (): Promise<PrivacySettings> => {
         console.log('Invoking get-settings');
         return ipcRenderer.invoke('get-settings')
             .catch(error => {
@@ -32,7 +44,8 @@ window.api = {
                 throw error;
             });
     },
-    saveSettings: (settings) => {
+
+    saveSettings: (settings: PrivacySettings): Promise<void> => {
         console.log('Invoking save-settings:', settings);
         return ipcRenderer.invoke('save-settings', settings)
             .then(() => console.log('Settings saved successfully'))
@@ -41,4 +54,4 @@ window.api = {
                 throw error;
             });
     }
-};
+});

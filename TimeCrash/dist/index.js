@@ -1,23 +1,35 @@
-import { app, BrowserWindow } from 'electron';
-import { createWindow, createTray } from './main.js';
-import { createDatabase, startActivityTracking, logDatabaseContents, loadSettingsFromLocalStorage } from './tracker.js';
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const electron_1 = require("electron");
+const main_1 = require("./main");
+const tracker_1 = require("./tracker");
 let mainWindow;
-app.whenReady().then(async () => {
-    mainWindow = await createWindow();
-    createTray(mainWindow);
-    await createDatabase();
-    loadSettingsFromLocalStorage(mainWindow);
-    await startActivityTracking(mainWindow);
-    logDatabaseContents();
-});
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
+electron_1.app.whenReady().then(async () => {
+    mainWindow = await (0, main_1.createWindow)();
+    try {
+        await (0, tracker_1.createDatabase)();
+        (0, main_1.createTray)(mainWindow);
+        (0, tracker_1.loadSettingsFromLocalStorage)(mainWindow);
+        try {
+            await (0, tracker_1.startActivityTracking)(mainWindow);
+        }
+        catch (err) {
+            console.error('Failed to start activity tracking:', err);
+        }
+        (0, tracker_1.logDatabaseContents)();
+    }
+    catch (err) {
+        console.error('Error during app initialization:', err);
     }
 });
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow().then((win) => (mainWindow = win));
+electron_1.app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        electron_1.app.quit();
+    }
+});
+electron_1.app.on('activate', () => {
+    if (electron_1.BrowserWindow.getAllWindows().length === 0) {
+        (0, main_1.createWindow)().then((win) => (mainWindow = win));
     }
 });
 process.on('uncaughtException', (err) => {

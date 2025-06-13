@@ -1,14 +1,22 @@
-// src/main.ts
-import { app, BrowserWindow, Tray, Menu, dialog } from 'electron';
-import path from 'path';
-import { __dirname } from './utils.js';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createWindow = createWindow;
+exports.createTray = createTray;
+const electron_1 = require("electron");
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 let isQuitting = false;
 let tray = null;
-export async function createWindow() {
+async function createWindow() {
     console.log('Main __dirname:', __dirname);
-    const preloadPath = path.join(__dirname, 'preload.js');
+    const preloadPath = path_1.default.join(__dirname, 'preload.js');
+    console.log('!!! Preload script executing !!!');
     console.log('Preload path:', preloadPath);
-    const mainWindow = new BrowserWindow({
+    console.log("Resolved preload path:", preloadPath, "Exists?", fs_1.default.existsSync(preloadPath));
+    const mainWindow = new electron_1.BrowserWindow({
         width: 1000,
         height: 700,
         show: false,
@@ -21,7 +29,7 @@ export async function createWindow() {
     mainWindow.on('ready-to-show', () => {
         mainWindow.show();
     });
-    await mainWindow.loadFile(path.join(__dirname, '../index.html'));
+    await mainWindow.loadFile(path_1.default.join(__dirname, '../index.html'));
     mainWindow.on('close', (event) => {
         if (!isQuitting) {
             event.preventDefault();
@@ -30,9 +38,14 @@ export async function createWindow() {
     });
     return mainWindow;
 }
-export function createTray(mainWindow) {
-    tray = new Tray(path.join(__dirname, 'icon.png')); // dist/icon.png
-    const contextMenu = Menu.buildFromTemplate([
+function createTray(mainWindow) {
+    const iconPath = path_1.default.join(__dirname, 'icon.png');
+    if (!fs_1.default.existsSync(iconPath)) {
+        console.warn(`Tray icon not found at ${iconPath}, skipping tray creation`);
+        return;
+    }
+    tray = new electron_1.Tray(iconPath);
+    const contextMenu = electron_1.Menu.buildFromTemplate([
         {
             label: 'Show App',
             click: () => {
@@ -42,7 +55,7 @@ export function createTray(mainWindow) {
         {
             label: 'Quit',
             click: () => {
-                const choice = dialog.showMessageBoxSync(mainWindow, {
+                const choice = electron_1.dialog.showMessageBoxSync(mainWindow, {
                     type: 'question',
                     buttons: ['Yes', 'No'],
                     title: 'Confirm Quit',
@@ -50,7 +63,7 @@ export function createTray(mainWindow) {
                 });
                 if (choice === 0) {
                     isQuitting = true;
-                    app.quit();
+                    electron_1.app.quit();
                 }
             },
         },

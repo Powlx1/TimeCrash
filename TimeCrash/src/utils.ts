@@ -1,6 +1,7 @@
-// src/utils.ts
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-export { __filename, __dirname };
+// // src/utils.ts
+// import path from 'path';
+
+// const __dirname = __dirname; 
+// const __filename = __filename;
+
+// export { __dirname, __filename };

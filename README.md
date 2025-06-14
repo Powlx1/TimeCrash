@@ -16,3 +16,7 @@ Tracking much more accurate, visible even more in the terminal, and database reg
 June 13/2025:
 
 Everything works. Tracking, display, even the file path is being shown. 
+
+June 14/2025:
+
+Tracking works flawlessly, even better than before, changed up the way it calculates time for applications, and it's much more precise now. Also readme changes.

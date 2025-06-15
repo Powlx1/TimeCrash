@@ -1,27 +1,47 @@
+// src/tracker.ts
 import { ipcMain, BrowserWindow } from 'electron';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import { mouse } from '@nut-tree-fork/nut-js';
-
-const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
+import { exec } from 'child_process';
+import os from 'os';
 
 interface TrackedApp {
     name: string;
     exePath: string;
     pid: number;
-    openStartTime: number;
-    activeStartTime?: number;
-    totalOpenDuration: number;
-    totalActiveDuration: number;
+    openStartTime: number; 
+    activeStartTime?: number; 
+    totalOpenDuration: number; 
+    totalActiveDuration: number; 
 }
 
-let trackedApps: TrackedApp[] = [];
+const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
+let trackedApps: TrackedApp[] = []; 
 let privacySettings = {
     trackWindowTitles: true,
     trackExecutablePaths: true
 };
-
 let lastLoggedDurations = new Map<string, { open: number, active: number }>();
+
+async function isProcessRunning(pid: number): Promise<boolean> {
+    return new Promise(resolve => {
+        if (os.platform() === 'win32') {
+            exec(`tasklist /FI "PID eq ${pid}"`, (error, stdout, stderr) => {
+                if (error || stderr) {
+                    resolve(false);
+                } else {
+                    resolve(stdout.includes(pid.toString()));
+                }
+            });
+        } else { 
+            exec(`ps -p ${pid}`, (error, stdout, stderr) => {
+                const lines = stdout.trim().split('\n');
+                resolve(lines.length > 1 && lines[1].includes(pid.toString()));
+            });
+        }
+    });
+}
 
 export async function createDatabase(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -31,7 +51,7 @@ export async function createDatabase(): Promise<void> {
                 app_name TEXT,
                 exe_path TEXT,
                 duration INTEGER,
-                date TEXT,
+                date TEXT, -- Stores date in YYYY-MM-DD format
                 type TEXT
             )`,
             (err) => {
@@ -48,13 +68,14 @@ export async function createDatabase(): Promise<void> {
 }
 
 function logActivity(appName: string, exePath: string, duration: number, date: string, type: 'open' | 'active'): Promise<{ id: number }> {
-    console.log(`Logging DELTA: App=${appName}, Duration=${duration}ms, Type=${type}`);
+    console.log(`Logging DELTA: App=${appName}, Duration=${duration}ms, Type=${type}, Date=${date}`);
     return new Promise((resolve, reject) => {
         db.run(
             `INSERT INTO activity (app_name, exe_path, duration, date, type) VALUES (?, ?, ?, ?, ?)`,
             [appName, exePath, duration, date, type],
             function (err) {
                 if (err) {
+                    console.error(`Error inserting activity for ${appName} (${type}):`, err);
                     reject(err);
                 } else {
                     resolve({ id: this.lastID });
@@ -64,6 +85,7 @@ function logActivity(appName: string, exePath: string, duration: number, date: s
     });
 }
 
+
 export function loadSettingsFromLocalStorage(mainWindow: BrowserWindow) {
     mainWindow.webContents.executeJavaScript(`localStorage.getItem('privacySettings');`).then((result) => {
         if (result) {
@@ -72,8 +94,11 @@ export function loadSettingsFromLocalStorage(mainWindow: BrowserWindow) {
         } else {
             console.log('No saved privacy settings found, using defaults.');
         }
+    }).catch(err => {
+        console.error('Error loading settings from local storage:', err);
     });
 }
+
 
 function saveSettingsToLocalStorage(mainWindow: BrowserWindow, settings: { trackWindowTitles: boolean, trackExecutablePaths: boolean }) {
     mainWindow.webContents.executeJavaScript(`localStorage.setItem('privacySettings', '${JSON.stringify(settings)}');`)
@@ -85,17 +110,22 @@ function saveSettingsToLocalStorage(mainWindow: BrowserWindow, settings: { track
         });
 }
 
-async function isMouseInWindow(windowData: any): Promise<boolean> {
-    const mousePos = await mouse.getPosition();
-    const bounds = windowData.bounds;
-    return (
-        mousePos.x >= bounds.x &&
-        mousePos.x <= bounds.x + bounds.width &&
-        mousePos.y >= bounds.y &&
-        mousePos.y <= bounds.y + bounds.height
-    );
-}
 
+async function isMouseInWindow(windowData: any): Promise<boolean> {
+    try {
+        const mousePos = await mouse.getPosition();
+        const bounds = windowData.bounds;
+        return (
+            mousePos.x >= bounds.x &&
+            mousePos.x <= bounds.x + bounds.width &&
+            mousePos.y >= bounds.y &&
+            mousePos.y <= bounds.y + bounds.height
+        );
+    } catch (error) {
+        console.error("Error getting mouse position or window bounds:", error);
+        return false; 
+    }
+}
 
 ipcMain.on('update-settings', (event, newSettings: { trackWindowTitles: boolean, trackExecutablePaths: boolean }) => {
     privacySettings = { ...privacySettings, ...newSettings };
@@ -109,7 +139,7 @@ ipcMain.handle('log-activity', async (event, appName: string, exePath: string, d
     try {
         return await logActivity(appName, exePath, duration, date, type);
     } catch (err) {
-        console.error('Failed to log activity:', err);
+        console.error('Failed to log activity via IPC:', err);
         throw err;
     }
 });
@@ -117,13 +147,49 @@ ipcMain.handle('log-activity', async (event, appName: string, exePath: string, d
 ipcMain.handle('get-app-stats', async () => {
     return new Promise((resolve, reject) => {
         db.all(`
-            SELECT app_name AS name, exe_path AS exePath, 
+            SELECT app_name AS name, exe_path AS exePath,
                    SUM(CASE WHEN type = 'open' THEN duration ELSE 0 END) AS totalOpenDuration,
                    SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
             FROM activity
             GROUP BY exe_path
         `, [], (err, rows) => {
             if (err) {
+                console.error('Error fetching all app stats:', err);
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
+});
+
+ipcMain.handle('get-available-dates', async () => {
+    return new Promise((resolve, reject) => {
+        db.all(`SELECT DISTINCT date FROM activity ORDER BY date DESC`, [], (err, rows: { date: string }[]) => {
+            if (err) {
+                console.error('Error fetching distinct dates:', err);
+                reject(err);
+            } else {
+                const dates = rows.map((row) => row.date);
+                resolve(dates);
+            }
+        });
+    });
+});
+
+ipcMain.handle('get-daily-app-stats', async (event, date: string) => {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT app_name AS name, exe_path AS exePath,
+                   SUM(CASE WHEN type = 'open' THEN duration ELSE 0 END) AS totalOpenDuration,
+                   SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
+            FROM activity
+            WHERE date = ?
+            GROUP BY exe_path
+            ORDER BY totalOpenDuration DESC
+        `, [date], (err, rows) => {
+            if (err) {
+                console.error(`Error fetching app stats for date ${date}:`, err);
                 reject(err);
             } else {
                 resolve(rows);
@@ -146,10 +212,12 @@ ipcMain.handle('save-settings', async (event, settings: { trackWindowTitles: boo
 
 
 export async function startActivityTracking(mainWindow: BrowserWindow): Promise<void> {
-    let activeWindow;
+    let activeWindow; 
+    let getAllWindows; 
     try {
         const getWindowsModule = await (new Function('return import("get-windows")')());
         activeWindow = getWindowsModule.activeWindow;
+        getAllWindows = getWindowsModule.getAllWindows;
         console.log('get-windows imported successfully.');
     } catch (error) {
         console.error('Failed to import get-windows. Activity tracking will be disabled.', error);
@@ -158,17 +226,55 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
 
     let lastTickTime = Date.now();
 
+    const appStartupTime = Date.now();
+    try {
+        const allOpenWindows = await getAllWindows();
+        const seenPids = new Set<number>();
+        for (const win of allOpenWindows) {
+            if (win.owner && !seenPids.has(win.owner.processId)) {
+                const { processId: pid, name, path: exePath } = win.owner;
+                trackedApps.push({ name, exePath, pid, openStartTime: appStartupTime, totalOpenDuration: 0, totalActiveDuration: 0 });
+                seenPids.add(pid);
+                console.log(`Initially tracking app found on startup: ${name} (PID: ${pid})`);
+            }
+        }
+    } catch (error) {
+        console.error("Error during initial scan of open windows on startup:", error);
+    }
+
     setInterval(async () => {
         try {
             const currentTime = Date.now();
             const deltaTime = currentTime - lastTickTime;
-            lastTickTime = currentTime;
+            lastTickTime = currentTime; 
+
+            const stillRunningApps: TrackedApp[] = [];
+            for (let i = 0; i < trackedApps.length; i++) {
+                const app = trackedApps[i];
+                const isRunning = await isProcessRunning(app.pid);
+
+                if (isRunning) {
+                    app.totalOpenDuration += deltaTime;
+                    stillRunningApps.push(app);
+                } else {
+                    const lastLogged = lastLoggedDurations.get(app.exePath) || { open: 0, active: 0 };
+                    const openDelta = app.totalOpenDuration - lastLogged.open;
+                    const activeDelta = app.totalActiveDuration - lastLogged.active;
+                    const date = new Date().toISOString().split('T')[0];
+
+                    if (openDelta > 0) {
+                        await logActivity(app.name, app.exePath, openDelta, date, 'open');
+                    }
+                    if (activeDelta > 0) {
+                        await logActivity(app.name, app.exePath, activeDelta, date, 'active');
+                    }
+                    console.log(`App detected as closed: ${app.name} (PID: ${app.pid}). Logging final deltas.`);
+                    lastLoggedDurations.delete(app.exePath);
+                }
+            }
+            trackedApps = stillRunningApps;
 
             const activeWin = await activeWindow();
-
-            for(const app of trackedApps) {
-                app.totalOpenDuration += deltaTime;
-            }
 
             if (activeWin && activeWin.owner) {
                 const { processId: pid, name, path: exePath } = activeWin.owner;
@@ -178,7 +284,7 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                 if (!app) {
                     app = { name, exePath, pid, openStartTime: currentTime, totalOpenDuration: 0, totalActiveDuration: 0 };
                     trackedApps.push(app);
-                    console.log(`New app opened: ${name}`);
+                    console.log(`New active app detected: ${name} (PID: ${pid})`);
                 }
                 
                 if (await isMouseInWindow(activeWin)) {
@@ -186,19 +292,20 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                 }
             }
         } catch (error) {
+            console.error("Error in main activity tracking interval (1s tick):", error);
         }
-    }, 1000);
+    }, 1000); 
 
     setInterval(async () => {
-        console.log('Writing time deltas to database...');
+        console.log('Periodically writing time deltas to database...');
+        const date = new Date().toISOString().split('T')[0];
+
         for (const app of trackedApps) {
             const lastLogged = lastLoggedDurations.get(app.exePath) || { open: 0, active: 0 };
 
             const openDelta = app.totalOpenDuration - lastLogged.open;
             const activeDelta = app.totalActiveDuration - lastLogged.active;
             
-            const date = new Date().toISOString();
-
             try {
                 if (openDelta > 0) {
                     await logActivity(app.name, app.exePath, openDelta, date, 'open');
@@ -213,22 +320,22 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                 });
 
             } catch (err) {
-                console.error('Error writing activity to database:', err);
+                console.error('Error writing periodic activity to database:', err);
             }
         }
     }, 30000);
 }
 
-
 export function logDatabaseContents(): void {
     db.all(`SELECT * FROM activity`, [], (err, rows) => {
         if (err) {
-            console.error('Error fetching data from database:', err);
+            console.error('Error fetching all data from database:', err);
             return;
         }
-        console.log('Database Contents:');
+        console.log('\n--- Database Contents ---');
         rows.forEach((row: any) => {
             console.log(`ID: ${row.id}, App: ${row.app_name}, ExePath: ${row.exe_path}, Duration: ${row.duration}ms, Date: ${row.date}, Type: ${row.type}`);
         });
+        console.log('-------------------------\n');
     });
 }

@@ -40,5 +40,21 @@ electron_1.contextBridge.exposeInMainWorld('api', {
             console.error('Error in saveSettings:', error);
             throw error;
         });
+    },
+    getAvailableDates: () => {
+        console.log('Invoking get-available-dates');
+        return electron_1.ipcRenderer.invoke('get-available-dates')
+            .catch(error => {
+            console.error('Error in getAvailableDates:', error);
+            throw error;
+        });
+    },
+    getDailyAppStats: (date) => {
+        console.log(`Invoking get-daily-app-stats for date: ${date}`);
+        return electron_1.ipcRenderer.invoke('get-daily-app-stats', date)
+            .catch(error => {
+            console.error(`Error in getDailyAppStats for date ${date}:`, error);
+            throw error;
+        });
     }
 });

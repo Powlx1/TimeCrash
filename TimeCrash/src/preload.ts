@@ -3,8 +3,15 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 console.log('!!! Preload script executing !!!');
 
-// Use global.d.ts types if available
 type ActivityType = 'open' | 'active';
+
+interface DailyAppStats {
+    name: string;
+    exePath: string;
+    totalOpenDuration: number;
+    totalActiveDuration: number;
+}
+
 
 contextBridge.exposeInMainWorld('api', {
     logActivity: (
@@ -51,6 +58,24 @@ contextBridge.exposeInMainWorld('api', {
             .then(() => console.log('Settings saved successfully'))
             .catch(error => {
                 console.error('Error in saveSettings:', error);
+                throw error;
+            });
+    },
+
+    getAvailableDates: (): Promise<string[]> => {
+        console.log('Invoking get-available-dates');
+        return ipcRenderer.invoke('get-available-dates')
+            .catch(error => {
+                console.error('Error in getAvailableDates:', error);
+                throw error;
+            });
+    },
+
+    getDailyAppStats: (date: string): Promise<DailyAppStats[]> => {
+        console.log(`Invoking get-daily-app-stats for date: ${date}`);
+        return ipcRenderer.invoke('get-daily-app-stats', date)
+            .catch(error => {
+                console.error(`Error in getDailyAppStats for date ${date}:`, error);
                 throw error;
             });
     }

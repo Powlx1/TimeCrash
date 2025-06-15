@@ -14,7 +14,8 @@
 
         <div class="tab">
             <button class="tablinks active" data-tab="Settings">Settings</button>
-            <button class="tablinks" data-tab="Tracking">Tracking</button>
+            <button class="tablinks" data-tab="Tracking">Live Tracking</button>
+            <button class="tablinks" data-tab="History">History</button>
         </div>
 
         <div id="Settings" class="tabcontent active">
@@ -33,6 +34,15 @@
         <div id="Tracking" class="tabcontent">
             <h2>Application Usage</h2>
             <ul id="app-stats"></ul>
+        </div>
+
+        <div id="History" class="tabcontent">
+            <h2>Historical Usage Data</h2>
+            <label for="date-selector">Select a date:</label>
+            <select id="date-selector">
+                <option>Loading dates...</option>
+            </select>
+            <ul id="history-app-stats"></ul>
         </div>
     </div>
 

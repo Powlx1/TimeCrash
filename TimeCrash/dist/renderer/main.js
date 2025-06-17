@@ -7,11 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const appUsageList = document.getElementById("app-stats");
     const dateSelector = document.getElementById('date-selector');
     const historyAppStatsList = document.getElementById('history-app-stats');
+    const trackWindowTitlesCheckbox = document.getElementById('trackWindowTitles');
+    const trackExecutablePathsCheckbox = document.getElementById('trackExecutablePaths');
 
     if (!window.api) {
         console.error("window.api is not defined - check preload script");
         if (appUsageList) appUsageList.innerHTML = "<li>Error: API not loaded</li>";
-        if (historyAppStatsList) historyAppStatsList.innerHTML = "<li>Error: API not loaded</li>"; // Also update history list
+        if (historyAppStatsList) historyAppStatsList.innerHTML = "<li>Error: API not loaded</li>";
         return;
     }
 
@@ -23,54 +25,70 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${hours}h ${minutes}m ${seconds}s`;
     }
 
-    function displayAppUsage(apps) {
-        if (!appUsageList) {
-            console.error("app-stats element not found");
-            return;
+    function createUsageDiagram(openDuration, activeDuration, maxDuration) {
+        if (maxDuration === 0) {
+            return `
+                <div class="diagram-container">
+                    <div class="diagram-bar" style="width: 0%;">
+                        <div class="diagram-bar-active" style="width: 0%;"></div>
+                    </div>
+                </div>
+            `;
         }
 
-        if (!apps || apps.length === 0) {
-            appUsageList.innerHTML = "<li>No usage data available.</li>";
-            return;
-        }
+        const openPercentage = (openDuration / maxDuration) * 100;
+        const activePercentageOfOpen = (openDuration > 0) ? (activeDuration / openDuration) * 100 : 0;
 
-        appUsageList.innerHTML = apps.map(app => `
-            <li>
-                <strong>${app.name}</strong><br>
-                Open Duration: ${formatDuration(app.totalOpenDuration)}<br>
-                Active Duration: ${formatDuration(app.totalActiveDuration)}<br>
-                <small>Path: ${app.exePath}</small>
-            </li>
-        `).join('');
+        return `
+            <div class="diagram-container">
+                <div class="diagram-bar" style="width: ${openPercentage.toFixed(2)}%;">
+                    <div class="diagram-bar-active" style="width: ${activePercentageOfOpen.toFixed(2)}%;"></div>
+                </div>
+            </div>
+        `;
     }
 
-    function displayHistoryAppUsage(apps) {
-        if (!historyAppStatsList) {
-            console.error("history-app-stats element not found");
-            return;
-        }
+    function renderAppStats(apps, targetListElement) {
+        targetListElement.innerHTML = '';
 
         if (!apps || apps.length === 0) {
-            historyAppStatsList.innerHTML = "<li>No usage data available for this date.</li>";
+            targetListElement.innerHTML = '<li style="text-align: center; color: var(--text-secondary);">No application usage data for this period.</li>';
             return;
         }
 
-        historyAppStatsList.innerHTML = apps.map(app => `
-            <li>
-                <strong>${app.name}</strong><br>
-                Open Duration: ${formatDuration(app.totalOpenDuration)}<br>
-                Active Duration: ${formatDuration(app.totalActiveDuration)}<br>
-                <small>Path: ${app.exePath}</small>
-            </li>
-        `).join('');
-    }
+        apps.sort((a, b) => b.totalOpenDuration - a.totalOpenDuration);
+        const maxOpenDuration = Math.max(...apps.map(app => app.totalOpenDuration));
 
+        apps.forEach(app => {
+            const listItem = document.createElement('li');
+            let detail = '';
+            const currentTrackWindowTitles = trackWindowTitlesCheckbox ? trackWindowTitlesCheckbox.checked : true;
+            const currentTrackExecutablePaths = trackExecutablePathsCheckbox ? trackExecutablePathsCheckbox.checked : true;
+
+            if (currentTrackExecutablePaths && app.exePath) {
+                detail += `<small>Path: ${app.exePath}</small>`;
+            }
+
+            const diagramHtml = createUsageDiagram(app.totalOpenDuration, app.totalActiveDuration, maxOpenDuration);
+
+            listItem.innerHTML = `
+                <strong>${app.name || 'Unknown Application'}</strong>
+                <p>Open: ${formatDuration(app.totalOpenDuration)}</p>
+                <p>Active: ${formatDuration(app.totalActiveDuration)}</p>
+                ${detail}
+                ${diagramHtml}
+            `;
+            targetListElement.appendChild(listItem);
+        });
+    }
 
     function updateStats() {
         console.log("Calling getAppStats for Live Tracking");
         window.api.getAppStats()
-            .then(displayAppUsage)
-            .catch(error => console.error('Failed to get app stats:', error));
+            .then(data => {
+                renderAppStats(data, appUsageList);
+            })
+            .catch(error => console.error('Failed to get live app stats:', error));
     }
 
     async function populateDateDropdown() {
@@ -83,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dates = await window.api.getAvailableDates();
             console.log("Dates received for dropdown:", dates);
 
-            dateSelector.innerHTML = ''; 
+            dateSelector.innerHTML = '';
 
             if (dates && dates.length > 0) {
                 dates.forEach(date => {
@@ -92,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     option.textContent = date;
                     dateSelector.appendChild(option);
                 });
+
                 dateSelector.value = dates[0];
                 await loadDailyAppStats(dates[0]);
             } else {
@@ -100,12 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 option.textContent = 'No usage data for specific dates available.';
                 option.value = '';
                 dateSelector.appendChild(option);
-                displayHistoryAppUsage([]);
+                renderAppStats([], historyAppStatsList);
             }
         } catch (error) {
             console.error('Failed to load available dates:', error);
             dateSelector.innerHTML = '<option value="">Error loading dates</option>';
-            displayHistoryAppUsage([]); 
+            renderAppStats([], historyAppStatsList);
         }
     }
 
@@ -113,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Loading daily app stats for date: ${date}`);
         try {
             const dailyStats = await window.api.getDailyAppStats(date);
-            displayHistoryAppUsage(dailyStats);
+            renderAppStats(dailyStats, historyAppStatsList);
         } catch (error) {
             console.error(`Failed to get daily app stats for ${date}:`, error);
             historyAppStatsList.innerHTML = "<li>Error loading daily stats.</li>";
@@ -127,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
             loadDailyAppStats(selectedDate);
         });
     }
-
 
     function openTab(tabName) {
         console.log(`--- Opening tab: ${tabName} ---`);
@@ -146,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tabName === 'Tracking') {
                 console.log('Dispatching loadTracking event');
                 window.dispatchEvent(new Event('loadTracking'));
-            } else if (tabName === 'History') { 
+            } else if (tabName === 'History') {
                 console.log('Dispatching loadHistory event');
                 window.dispatchEvent(new Event('loadHistory'));
             }
@@ -160,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('loadTracking', () => {
         console.log("Event 'loadTracking' received. Tracking tab opened, starting stats update");
         updateStats();
+        if (intervalId) clearInterval(intervalId);
         intervalId = setInterval(updateStats, 5000);
     });
 
@@ -167,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Event 'loadHistory' received. History tab opened, populating date dropdown.");
         populateDateDropdown();
     });
-
 
     const tabLinks = document.querySelectorAll('.tablinks');
     if (tabLinks.length === 0) {
@@ -191,29 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     openTab('Settings');
 
-    window.api.getSettings().then((settings) => {
-        if (!settings) {
-            console.log("No settings found, showing Settings tab");
-            document.getElementById('Settings')?.classList.add('active');
-        } else {
-            loadSettingsUI(settings);
-        }
-    });
-
-    const saveButton = document.getElementById('saveInitialSettings');
-    if (saveButton) {
-        saveButton.addEventListener('click', () => {
-            console.log("Saving settings");
-            const trackWindowTitles = document.getElementById('trackWindowTitles').checked;
-            const trackExecutablePaths = document.getElementById('trackExecutablePaths').checked;
-
-            const settings = { trackWindowTitles, trackExecutablePaths };
-            window.api.saveSettings(settings);
-        });
-    } else {
-        console.error("saveInitialSettings button not found");
-    }
-
     function loadSettingsUI(settings) {
         const titleCheckbox = document.getElementById('trackWindowTitles');
         const pathCheckbox = document.getElementById('trackExecutablePaths');
@@ -221,7 +216,33 @@ document.addEventListener('DOMContentLoaded', () => {
             titleCheckbox.checked = settings.trackWindowTitles;
             pathCheckbox.checked = settings.trackExecutablePaths;
         } else {
-            console.error("Settings checkboxes not found");
+            console.error("Settings checkboxes not found.");
         }
+    }
+
+    window.api.getSettings().then((settings) => {
+        if (!settings) {
+            console.log("No settings found, showing Settings tab (initial load)");
+        } else {
+            loadSettingsUI(settings);
+        }
+    }).catch(error => {
+        console.error("Error fetching initial settings:", error);
+    });
+
+    const saveButton = document.getElementById('saveInitialSettings');
+    if (saveButton) {
+        saveButton.addEventListener('click', () => {
+            console.log("Saving settings...");
+            const trackWindowTitles = (document.getElementById('trackWindowTitles')).checked;
+            const trackExecutablePaths = (document.getElementById('trackExecutablePaths')).checked;
+
+            const settings = { trackWindowTitles, trackExecutablePaths };
+            window.api.saveSettings(settings)
+                .then(() => console.log('Settings saved and IPC sent successfully.'))
+                .catch(error => console.error('Error saving settings via IPC:', error));
+        });
+    } else {
+        console.error("saveInitialSettings button not found.");
     }
 });

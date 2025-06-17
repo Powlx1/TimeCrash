@@ -136,6 +136,7 @@ electron_1.ipcMain.handle('get-app-stats', async () => {
                    SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
             FROM activity
             GROUP BY exe_path
+            ORDER BY totalOpenDuration DESC -- Added sorting here
         `, [], (err, rows) => {
             if (err) {
                 console.error('Error fetching all app stats:', err);

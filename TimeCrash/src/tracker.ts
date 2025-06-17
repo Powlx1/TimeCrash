@@ -10,14 +10,14 @@ interface TrackedApp {
     name: string;
     exePath: string;
     pid: number;
-    openStartTime: number; 
-    activeStartTime?: number; 
-    totalOpenDuration: number; 
-    totalActiveDuration: number; 
+    openStartTime: number;
+    activeStartTime?: number;
+    totalOpenDuration: number;
+    totalActiveDuration: number;
 }
 
 const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
-let trackedApps: TrackedApp[] = []; 
+let trackedApps: TrackedApp[] = [];
 let privacySettings = {
     trackWindowTitles: true,
     trackExecutablePaths: true
@@ -34,7 +34,7 @@ async function isProcessRunning(pid: number): Promise<boolean> {
                     resolve(stdout.includes(pid.toString()));
                 }
             });
-        } else { 
+        } else {
             exec(`ps -p ${pid}`, (error, stdout, stderr) => {
                 const lines = stdout.trim().split('\n');
                 resolve(lines.length > 1 && lines[1].includes(pid.toString()));
@@ -123,7 +123,7 @@ async function isMouseInWindow(windowData: any): Promise<boolean> {
         );
     } catch (error) {
         console.error("Error getting mouse position or window bounds:", error);
-        return false; 
+        return false;
     }
 }
 
@@ -152,6 +152,7 @@ ipcMain.handle('get-app-stats', async () => {
                    SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
             FROM activity
             GROUP BY exe_path
+            ORDER BY totalOpenDuration DESC -- Added sorting here
         `, [], (err, rows) => {
             if (err) {
                 console.error('Error fetching all app stats:', err);
@@ -212,8 +213,8 @@ ipcMain.handle('save-settings', async (event, settings: { trackWindowTitles: boo
 
 
 export async function startActivityTracking(mainWindow: BrowserWindow): Promise<void> {
-    let activeWindow; 
-    let getAllWindows; 
+    let activeWindow;
+    let getAllWindows;
     try {
         const getWindowsModule = await (new Function('return import("get-windows")')());
         activeWindow = getWindowsModule.activeWindow;
@@ -246,7 +247,7 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
         try {
             const currentTime = Date.now();
             const deltaTime = currentTime - lastTickTime;
-            lastTickTime = currentTime; 
+            lastTickTime = currentTime;
 
             const stillRunningApps: TrackedApp[] = [];
             for (let i = 0; i < trackedApps.length; i++) {
@@ -278,7 +279,7 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
 
             if (activeWin && activeWin.owner) {
                 const { processId: pid, name, path: exePath } = activeWin.owner;
-                
+
                 let app = trackedApps.find((a) => a.exePath === exePath);
 
                 if (!app) {
@@ -286,7 +287,7 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                     trackedApps.push(app);
                     console.log(`New active app detected: ${name} (PID: ${pid})`);
                 }
-                
+
                 if (await isMouseInWindow(activeWin)) {
                     app.totalActiveDuration += deltaTime;
                 }
@@ -294,7 +295,7 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
         } catch (error) {
             console.error("Error in main activity tracking interval (1s tick):", error);
         }
-    }, 1000); 
+    }, 1000);
 
     setInterval(async () => {
         console.log('Periodically writing time deltas to database...');
@@ -305,7 +306,7 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
 
             const openDelta = app.totalOpenDuration - lastLogged.open;
             const activeDelta = app.totalActiveDuration - lastLogged.active;
-            
+
             try {
                 if (openDelta > 0) {
                     await logActivity(app.name, app.exePath, openDelta, date, 'open');

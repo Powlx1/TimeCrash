@@ -24,3 +24,7 @@ Tracking works flawlessly, even better than before, changed up the way it calcul
 June 15/2025:
 
 Further tracking optimization, also history feature added(huge changes).
+
+June 16/2025:
+
+Lots of designs changes. By lots, I mean LOTS. All that remains, is to include some actual diagrams, and it's finished.

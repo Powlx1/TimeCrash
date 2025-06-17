@@ -1,5 +1,4 @@
 import { app, BrowserWindow } from 'electron';
-import path from 'path';
 import { createWindow, createTray } from './main';
 import { createDatabase, startActivityTracking, logDatabaseContents, loadSettingsFromLocalStorage } from './tracker';
 

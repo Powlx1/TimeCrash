@@ -14,6 +14,11 @@
     --font-size-base: 16px;
     --border-radius: 8px;
     --spacing-unit: 10px;
+
+    --diagram-open-color: rgba(255, 255, 255, 0.15);
+    --diagram-active-color: var(--accent-green);
+    --diagram-chart-bar-open: rgba(0, 123, 255, 0.4);
+    --diagram-chart-bar-active: rgba(40, 167, 69, 0.8);
 }
 
 * {
@@ -143,39 +148,78 @@ h2 {
     flex-shrink: 0;
 }
 
-#app-stats li,
-#history-app-stats li {
+.app-stat-item {
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     padding: calc(var(--spacing-unit) * 1.5);
     margin-bottom: var(--spacing-unit);
     display: flex;
-    flex-direction: column;
-    gap: calc(var(--spacing-unit) / 2);
+    align-items: center;
+    justify-content: space-between; 
+    gap: calc(var(--spacing-unit));
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-#app-stats li:hover,
-#history-app-stats li:hover {
+.app-stat-item:hover {
     transform: translateY(-3px);
     box-shadow: 0 5px 15px var(--shadow-color);
 }
 
-#app-stats li strong,
-#history-app-stats li strong {
+.app-details-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing-unit) / 2);
+}
+
+.app-stat-item strong {
     color: var(--accent-green);
     font-size: 1.1em;
 }
 
-#app-stats li small,
-#history-app-stats li small {
+.app-stat-item p,
+.app-stat-item small {
     color: var(--text-secondary);
     font-size: 0.85em;
     word-break: break-all;
 }
 
-.settings-group {
+.app-diagrams-container {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing-unit));
+    flex-shrink: 0; 
+}
+
+.diagram-container {
+    width: 100px; 
+    height: 12px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: calc(var(--spacing-unit) / 2); 
+}
+
+.diagram-bar {
+    height: 100%;
+    position: relative;
+    background-color: var(--accent-blue); 
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.diagram-bar-active {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background-color: var(--accent-green); 
+    border-radius: 6px;
+}
+
+
+.settings-group { 
     display: flex;
     align-items: center;
     margin-bottom: var(--spacing-unit);
@@ -185,7 +229,7 @@ h2 {
     border: 1px solid var(--border-color);
 }
 
-.settings-group label {
+.settings-group label { 
     margin-left: var(--spacing-unit);
     cursor: pointer;
     font-size: 1.05em;
@@ -202,6 +246,8 @@ input[type="checkbox"] {
     position: relative;
     outline: none;
     transition: background-color 0.3s, border-color 0.3s;
+    vertical-align: middle;
+    margin-right: calc(var(--spacing-unit) / 2); 
 }
 
 input[type="checkbox"]:checked {
@@ -242,6 +288,14 @@ button:active {
     transform: translateY(0);
 }
 
+#saveInitialSettings {
+    background-color: var(--accent-green);
+}
+
+#saveInitialSettings:hover {
+    background-color: #1e7e34;
+}
+
 #History label[for="date-selector"] {
     font-size: 1.1em;
     color: var(--text-primary);
@@ -250,11 +304,11 @@ button:active {
 }
 
 #date-selector {
-    background-color: var(--bg-medium);
+    background-color: var(--bg-light);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    padding: var(--spacing-unit);
+    padding: calc(var(--spacing-unit) * 1.5);
     font-size: 1em;
     cursor: pointer;
     outline: none;
@@ -270,10 +324,6 @@ button:active {
     flex-grow: 0;
     flex-shrink: 0;
     margin-bottom: calc(var(--spacing-unit) * 1.5);
-    background-color: var(--bg-light);
-    padding: calc(var(--spacing-unit) * 1.5);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
 }
 
 #date-selector:focus {
@@ -286,28 +336,97 @@ button:active {
     color: var(--text-primary);
 }
 
-.diagram-container {
-    width: 100%;
-    height: 12px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    overflow: hidden;
-    margin-top: calc(var(--spacing-unit) / 2);
+.diagrams-section {
+    background-color: var(--bg-medium);
+    padding: calc(var(--spacing-unit) * 1.5);
+    border-radius: var(--border-radius);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    margin-bottom: calc(var(--spacing-unit) * 2);
 }
 
-.diagram-bar {
-    height: 100%;
+.activity-ring-container {
     position: relative;
-    background-color: var(--accent-blue);
-    border-radius: 6px;
-    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+    width: 60px; 
+    height: 60px;
 }
 
-.diagram-bar-active {
+.activity-ring-container svg {
     position: absolute;
     top: 0;
     left: 0;
+}
+
+.activity-ring-background {
+    stroke: var(--diagram-open-color);
+    stroke-width: 8;
+    fill: transparent;
+}
+
+.activity-ring-foreground {
+    stroke: var(--diagram-active-color);
+    stroke-width: 8;
+    fill: transparent;
+    transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.activity-ring-container .center-text {
+    position: absolute;
+    z-index: 10;
+    font-size: 0.75rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+#daily-overview-chart {
+    background-color: var(--bg-medium);
+    padding: calc(var(--spacing-unit) * 1.5);
+    border-radius: var(--border-radius);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    margin-bottom: calc(var(--spacing-unit) * 2);
+}
+
+.diagram-bar-total {
+    width: 100%;
+    height: 20px;
+    background-color: var(--diagram-open-color);
+    border-radius: 0.25rem;
+    margin-top: 0.75rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.diagram-bar-total-active {
     height: 100%;
-    background-color: var(--accent-green);
-    border-radius: 6px;
+    background-color: var(--diagram-active-color);
+    border-radius: 0.25rem;
+    width: 0%;
+    transition: width 0.5s ease-out;
+}
+
+#live-timeline-chart {
+    height: 300px;
+    width: 100%;
+    background-color: var(--bg-medium);
+    padding: calc(var(--spacing-unit) * 1.5);
+    border-radius: var(--border-radius);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: calc(var(--spacing-unit) * 2);
+}
+
+#activityChart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chartjs-render-monitor canvas {
+    color: var(--text-primary);
 }

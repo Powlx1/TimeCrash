@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:;">    <title>TimeCrash - App Usage Tracker</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:;">
+    <title>TimeCrash - App Usage Tracker</title>
     <link rel="stylesheet" href="./styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -32,6 +34,12 @@
 
         <div id="Tracking" class="tabcontent">
             <h2>Application Usage</h2>
+            <div class="diagrams-section">
+                <h3>Real-time Activity Timeline</h3>
+                <div id="live-timeline-chart">
+                    <canvas id="activityChart"></canvas>
+                </div>
+            </div>
             <ul id="app-stats"></ul>
         </div>
 
@@ -41,6 +49,16 @@
             <select id="date-selector">
                 <option>Loading dates...</option>
             </select>
+            <div class="diagrams-section">
+                <h3>Daily Activity Overview</h3>
+                <div id="daily-overview-chart">
+                    <div class="diagram-bar-total">
+                        <div class="diagram-bar-total-active"></div>
+                    </div>
+                    <p>Total Open: <span id="total-open-duration"></span></p>
+                    <p>Total Active: <span id="total-active-duration"></span></p>
+                </div>
+            </div>
             <ul id="history-app-stats"></ul>
         </div>
     </div>

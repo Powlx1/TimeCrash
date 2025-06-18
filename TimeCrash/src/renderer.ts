@@ -1,23 +1,3 @@
-interface PrivacySettings {
-    trackWindowTitles: boolean;
-    trackExecutablePaths: boolean;
-}
-
-interface TrackedApp {
-    name: string;
-    exePath: string;
-    pid: number;
-    totalOpenDuration: number;
-    totalActiveDuration: number;
-}
-
-interface DailyAppStats {
-    name: string;
-    exePath: string;
-    totalOpenDuration: number;
-    totalActiveDuration: number;
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     console.log("Renderer DOM fully loaded");
     console.log("window.api:", window.api);

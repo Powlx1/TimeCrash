@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadDailyAppStats(date) {
         console.log(`Loading daily app stats for date: ${date}`);
         try {
-            await window.api.cleanCoUsage(); // Clean low-duration pairs
+            await window.api.cleanCoUsage();
             const dailyStats = await window.api.getDailyAppStats(date);
             const coUsageStats = await window.api.getCoUsageStats(date);
             renderAppStats(dailyStats, historyAppStatsList);

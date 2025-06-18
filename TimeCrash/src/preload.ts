@@ -1,25 +1,8 @@
-// src/preload.ts
 import { contextBridge, ipcRenderer } from 'electron';
 
 console.log('!!! Preload script executing !!!');
 
 type ActivityType = 'open' | 'active';
-
-interface DailyAppStats {
-    name: string;
-    exePath: string;
-    totalOpenDuration: number;
-    totalActiveDuration: number;
-}
-
-interface AppCoUsage {
-    app1_name: string;
-    app1_exePath: string;
-    app2_name: string;
-    app2_exePath: string;
-    co_usage_duration: number;
-    date: string;
-}
 
 contextBridge.exposeInMainWorld('api', {
     logActivity: (

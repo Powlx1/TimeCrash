@@ -1,4 +1,3 @@
-// src/tracker.ts
 import { ipcMain, BrowserWindow } from 'electron';
 import sqlite3 from 'sqlite3';
 import path from 'path';
@@ -14,16 +13,7 @@ interface TrackedApp {
     activeStartTime?: number;
     totalOpenDuration: number;
     totalActiveDuration: number;
-    lastActiveTime?: number; // Track when app was last active
-}
-
-interface AppCoUsage {
-    app1_name: string;
-    app1_exePath: string;
-    app2_name: string;
-    app2_exePath: string;
-    co_usage_duration: number;
-    date: string;
+    lastActiveTime?: number; 
 }
 
 const db = new sqlite3.Database(path.join(__dirname, 'activity_tracker.db'));
@@ -34,8 +24,8 @@ let privacySettings = {
 };
 let lastLoggedDurations = new Map<string, { open: number, active: number }>();
 let lastLoggedCoUsages = new Map<string, { duration: number }>();
-const activeTimeWindow = 30000; // 30 seconds window for considering apps "recently active"
-const trackedPairs = new Set<string>(); // Track active co-usage pairs to log new ones once
+const activeTimeWindow = 30000; 
+const trackedPairs = new Set<string>(); 
 
 async function isProcessRunning(pid: number): Promise<boolean> {
     return new Promise(resolve => {
@@ -145,7 +135,7 @@ function logCoUsage(app1: TrackedApp, app2: TrackedApp, duration: number, date: 
 export function cleanLowDurationCoUsages(): Promise<void> {
     return new Promise((resolve, reject) => {
         db.run(
-            `DELETE FROM app_co_usage WHERE co_usage_duration < 10000`, // Remove pairs <10s
+            `DELETE FROM app_co_usage WHERE co_usage_duration < 10000`, 
             (err) => {
                 if (err) {
                     console.error('Failed to clean low-duration co-usages:', err);
@@ -373,7 +363,6 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                     }
                     console.log(`App detected as closed: ${app.name} (PID: ${app.pid}). Logging final deltas.`);
                     lastLoggedDurations.delete(app.exePath);
-                    // Remove from tracked pairs
                     for (const key of trackedPairs) {
                         if (key.includes(app.exePath)) {
                             trackedPairs.delete(key);
@@ -403,7 +392,6 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                 }
             }
 
-            // Log co-usage for pairs where both apps were recently active
             const date = new Date().toISOString().split('T')[0];
             for (let i = 0; i < stillRunningApps.length; i++) {
                 const app1 = stillRunningApps[i];
@@ -413,7 +401,6 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
                     const app2 = stillRunningApps[j];
                     if (!app2.lastActiveTime || (currentTime - app2.lastActiveTime) > activeTimeWindow) continue;
 
-                    // Only log if at least one app is currently active
                     if (app1 === currentActiveApp || app2 === currentActiveApp) {
                         const key = `${app1.exePath}|${app2.exePath}` < `${app2.exePath}|${app1.exePath}` 
                             ? `${app1.exePath}|${app2.exePath}` 
@@ -460,7 +447,6 @@ export async function startActivityTracking(mainWindow: BrowserWindow): Promise<
             }
         }
 
-        // Periodically log co-usage deltas
         for (const [key, { duration }] of lastLoggedCoUsages.entries()) {
             if (duration > 0) {
                 const [exePath1, exePath2] = key.split('|');

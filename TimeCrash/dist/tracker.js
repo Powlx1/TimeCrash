@@ -8,7 +8,6 @@ exports.cleanLowDurationCoUsages = cleanLowDurationCoUsages;
 exports.loadSettingsFromLocalStorage = loadSettingsFromLocalStorage;
 exports.startActivityTracking = startActivityTracking;
 exports.logDatabaseContents = logDatabaseContents;
-// src/tracker.ts
 const electron_1 = require("electron");
 const sqlite3_1 = __importDefault(require("sqlite3"));
 const path_1 = __importDefault(require("path"));
@@ -23,8 +22,8 @@ let privacySettings = {
 };
 let lastLoggedDurations = new Map();
 let lastLoggedCoUsages = new Map();
-const activeTimeWindow = 30000; // 30 seconds window for considering apps "recently active"
-const trackedPairs = new Set(); // Track active co-usage pairs to log new ones once
+const activeTimeWindow = 30000;
+const trackedPairs = new Set();
 async function isProcessRunning(pid) {
     return new Promise(resolve => {
         if (os_1.default.platform() === 'win32') {
@@ -119,8 +118,7 @@ function logCoUsage(app1, app2, duration, date) {
 }
 function cleanLowDurationCoUsages() {
     return new Promise((resolve, reject) => {
-        db.run(`DELETE FROM app_co_usage WHERE co_usage_duration < 10000`, // Remove pairs <10s
-        (err) => {
+        db.run(`DELETE FROM app_co_usage WHERE co_usage_duration < 10000`, (err) => {
             if (err) {
                 console.error('Failed to clean low-duration co-usages:', err);
                 reject(err);
@@ -337,7 +335,6 @@ async function startActivityTracking(mainWindow) {
                     }
                     console.log(`App detected as closed: ${app.name} (PID: ${app.pid}). Logging final deltas.`);
                     lastLoggedDurations.delete(app.exePath);
-                    // Remove from tracked pairs
                     for (const key of trackedPairs) {
                         if (key.includes(app.exePath)) {
                             trackedPairs.delete(key);
@@ -362,7 +359,6 @@ async function startActivityTracking(mainWindow) {
                     currentActiveApp = app;
                 }
             }
-            // Log co-usage for pairs where both apps were recently active
             const date = new Date().toISOString().split('T')[0];
             for (let i = 0; i < stillRunningApps.length; i++) {
                 const app1 = stillRunningApps[i];
@@ -372,7 +368,6 @@ async function startActivityTracking(mainWindow) {
                     const app2 = stillRunningApps[j];
                     if (!app2.lastActiveTime || (currentTime - app2.lastActiveTime) > activeTimeWindow)
                         continue;
-                    // Only log if at least one app is currently active
                     if (app1 === currentActiveApp || app2 === currentActiveApp) {
                         const key = `${app1.exePath}|${app2.exePath}` < `${app2.exePath}|${app1.exePath}`
                             ? `${app1.exePath}|${app2.exePath}`
@@ -414,7 +409,6 @@ async function startActivityTracking(mainWindow) {
                 console.error('Error writing periodic activity to database:', err);
             }
         }
-        // Periodically log co-usage deltas
         for (const [key, { duration }] of lastLoggedCoUsages.entries()) {
             if (duration > 0) {
                 const [exePath1, exePath2] = key.split('|');

@@ -1,6 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/preload.ts
 const electron_1 = require("electron");
 console.log('!!! Preload script executing !!!');
 electron_1.contextBridge.exposeInMainWorld('api', {

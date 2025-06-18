@@ -56,5 +56,21 @@ electron_1.contextBridge.exposeInMainWorld('api', {
             console.error(`Error in getDailyAppStats for date ${date}:`, error);
             throw error;
         });
+    },
+    getCoUsageStats: (date) => {
+        console.log(`Invoking get-co-usage-stats for date: ${date}`);
+        return electron_1.ipcRenderer.invoke('get-co-usage-stats', date)
+            .catch(error => {
+            console.error(`Error in getCoUsageStats for date ${date}:`, error);
+            throw error;
+        });
+    },
+    cleanCoUsage: () => {
+        console.log('Invoking clean-co-usage');
+        return electron_1.ipcRenderer.invoke('clean-co-usage')
+            .catch(error => {
+            console.error('Error in cleanCoUsage:', error);
+            throw error;
+        });
     }
 });

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createDatabase = createDatabase;
+exports.cleanLowDurationCoUsages = cleanLowDurationCoUsages;
 exports.loadSettingsFromLocalStorage = loadSettingsFromLocalStorage;
 exports.startActivityTracking = startActivityTracking;
 exports.logDatabaseContents = logDatabaseContents;
@@ -21,6 +22,9 @@ let privacySettings = {
     trackExecutablePaths: true
 };
 let lastLoggedDurations = new Map();
+let lastLoggedCoUsages = new Map();
+const activeTimeWindow = 30000; // 30 seconds window for considering apps "recently active"
+const trackedPairs = new Set(); // Track active co-usage pairs to log new ones once
 async function isProcessRunning(pid) {
     return new Promise(resolve => {
         if (os_1.default.platform() === 'win32') {
@@ -43,22 +47,38 @@ async function isProcessRunning(pid) {
 }
 async function createDatabase() {
     return new Promise((resolve, reject) => {
-        db.run(`CREATE TABLE IF NOT EXISTS activity (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                app_name TEXT,
-                exe_path TEXT,
-                duration INTEGER,
-                date TEXT, -- Stores date in YYYY-MM-DD format
-                type TEXT
-            )`, (err) => {
-            if (err) {
-                console.error('Failed to create database:', err);
-                reject(err);
-            }
-            else {
-                console.log('Database table created or already exists');
-                resolve();
-            }
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS activity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_name TEXT,
+                    exe_path TEXT,
+                    duration INTEGER,
+                    date TEXT,
+                    type TEXT
+                )`, (err) => {
+                if (err) {
+                    console.error('Failed to create activity table:', err);
+                    reject(err);
+                }
+            });
+            db.run(`CREATE TABLE IF NOT EXISTS app_co_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app1_name TEXT,
+                    app1_exePath TEXT,
+                    app2_name TEXT,
+                    app2_exePath TEXT,
+                    co_usage_duration INTEGER,
+                    date TEXT
+                )`, (err) => {
+                if (err) {
+                    console.error('Failed to create app_co_usage table:', err);
+                    reject(err);
+                }
+                else {
+                    console.log('Database tables created or already exist');
+                    resolve();
+                }
+            });
         });
     });
 }
@@ -72,6 +92,42 @@ function logActivity(appName, exePath, duration, date, type) {
             }
             else {
                 resolve({ id: this.lastID });
+            }
+        });
+    });
+}
+function logCoUsage(app1, app2, duration, date) {
+    const key = `${app1.exePath}|${app2.exePath}` < `${app2.exePath}|${app1.exePath}`
+        ? `${app1.exePath}|${app2.exePath}`
+        : `${app2.exePath}|${app1.exePath}`;
+    if (!trackedPairs.has(key)) {
+        console.log(`New co-usage pair detected: ${app1.name} & ${app2.name}`);
+        trackedPairs.add(key);
+    }
+    return new Promise((resolve, reject) => {
+        db.run(`INSERT INTO app_co_usage (app1_name, app1_exePath, app2_name, app2_exePath, co_usage_duration, date) 
+             VALUES (?, ?, ?, ?, ?, ?)`, [app1.name, app1.exePath, app2.name, app2.exePath, duration, date], function (err) {
+            if (err) {
+                console.error(`Error inserting co-usage for ${app1.name} & ${app2.name}:`, err);
+                reject(err);
+            }
+            else {
+                resolve({ id: this.lastID });
+            }
+        });
+    });
+}
+function cleanLowDurationCoUsages() {
+    return new Promise((resolve, reject) => {
+        db.run(`DELETE FROM app_co_usage WHERE co_usage_duration < 10000`, // Remove pairs <10s
+        (err) => {
+            if (err) {
+                console.error('Failed to clean low-duration co-usages:', err);
+                reject(err);
+            }
+            else {
+                console.log('Cleaned low-duration co-usage entries');
+                resolve();
             }
         });
     });
@@ -136,7 +192,7 @@ electron_1.ipcMain.handle('get-app-stats', async () => {
                    SUM(CASE WHEN type = 'active' THEN duration ELSE 0 END) AS totalActiveDuration
             FROM activity
             GROUP BY exe_path
-            ORDER BY totalOpenDuration DESC -- Added sorting here
+            ORDER BY totalOpenDuration DESC
         `, [], (err, rows) => {
             if (err) {
                 console.error('Error fetching all app stats:', err);
@@ -182,6 +238,38 @@ electron_1.ipcMain.handle('get-daily-app-stats', async (event, date) => {
             }
         });
     });
+});
+electron_1.ipcMain.handle('get-co-usage-stats', async (event, date) => {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT app1_name, app1_exePath, app2_name, app2_exePath,
+                   SUM(co_usage_duration) AS co_usage_duration,
+                   date
+            FROM app_co_usage
+            WHERE date = ?
+            GROUP BY app1_exePath, app2_exePath
+            ORDER BY co_usage_duration DESC
+            LIMIT 5
+        `, [date], (err, rows) => {
+            if (err) {
+                console.error(`Error fetching co-usage stats for date ${date}:`, err);
+                reject(err);
+            }
+            else {
+                resolve(rows);
+            }
+        });
+    });
+});
+electron_1.ipcMain.handle('clean-co-usage', async () => {
+    try {
+        await cleanLowDurationCoUsages();
+        console.log('Low-duration co-usage entries cleaned via IPC');
+    }
+    catch (err) {
+        console.error('Failed to clean co-usage entries via IPC:', err);
+        throw err;
+    }
 });
 electron_1.ipcMain.handle('get-settings', async () => {
     return privacySettings;
@@ -249,10 +337,17 @@ async function startActivityTracking(mainWindow) {
                     }
                     console.log(`App detected as closed: ${app.name} (PID: ${app.pid}). Logging final deltas.`);
                     lastLoggedDurations.delete(app.exePath);
+                    // Remove from tracked pairs
+                    for (const key of trackedPairs) {
+                        if (key.includes(app.exePath)) {
+                            trackedPairs.delete(key);
+                        }
+                    }
                 }
             }
             trackedApps = stillRunningApps;
             const activeWin = await activeWindow();
+            let currentActiveApp = null;
             if (activeWin && activeWin.owner) {
                 const { processId: pid, name, path: exePath } = activeWin.owner;
                 let app = trackedApps.find((a) => a.exePath === exePath);
@@ -263,6 +358,32 @@ async function startActivityTracking(mainWindow) {
                 }
                 if (await isMouseInWindow(activeWin)) {
                     app.totalActiveDuration += deltaTime;
+                    app.lastActiveTime = currentTime;
+                    currentActiveApp = app;
+                }
+            }
+            // Log co-usage for pairs where both apps were recently active
+            const date = new Date().toISOString().split('T')[0];
+            for (let i = 0; i < stillRunningApps.length; i++) {
+                const app1 = stillRunningApps[i];
+                if (!app1.lastActiveTime || (currentTime - app1.lastActiveTime) > activeTimeWindow)
+                    continue;
+                for (let j = i + 1; j < stillRunningApps.length; j++) {
+                    const app2 = stillRunningApps[j];
+                    if (!app2.lastActiveTime || (currentTime - app2.lastActiveTime) > activeTimeWindow)
+                        continue;
+                    // Only log if at least one app is currently active
+                    if (app1 === currentActiveApp || app2 === currentActiveApp) {
+                        const key = `${app1.exePath}|${app2.exePath}` < `${app2.exePath}|${app1.exePath}`
+                            ? `${app1.exePath}|${app2.exePath}`
+                            : `${app2.exePath}|${app1.exePath}`;
+                        const lastLogged = lastLoggedCoUsages.get(key) || { duration: 0 };
+                        const coUsageDelta = deltaTime;
+                        if (coUsageDelta > 0) {
+                            await logCoUsage(app1, app2, coUsageDelta, date);
+                            lastLoggedCoUsages.set(key, { duration: lastLogged.duration + coUsageDelta });
+                        }
+                    }
                 }
             }
         }
@@ -293,17 +414,40 @@ async function startActivityTracking(mainWindow) {
                 console.error('Error writing periodic activity to database:', err);
             }
         }
+        // Periodically log co-usage deltas
+        for (const [key, { duration }] of lastLoggedCoUsages.entries()) {
+            if (duration > 0) {
+                const [exePath1, exePath2] = key.split('|');
+                const app1 = trackedApps.find(app => app.exePath === exePath1);
+                const app2 = trackedApps.find(app => app.exePath === exePath2);
+                if (app1 && app2) {
+                    await logCoUsage(app1, app2, duration, date);
+                    lastLoggedCoUsages.set(key, { duration: 0 });
+                }
+            }
+        }
     }, 30000);
 }
 function logDatabaseContents() {
     db.all(`SELECT * FROM activity`, [], (err, rows) => {
         if (err) {
-            console.error('Error fetching all data from database:', err);
+            console.error('Error fetching all data from activity table:', err);
             return;
         }
-        console.log('\n--- Database Contents ---');
+        console.log('\n--- Activity Table Contents ---');
         rows.forEach((row) => {
             console.log(`ID: ${row.id}, App: ${row.app_name}, ExePath: ${row.exe_path}, Duration: ${row.duration}ms, Date: ${row.date}, Type: ${row.type}`);
+        });
+        console.log('-------------------------\n');
+    });
+    db.all(`SELECT * FROM app_co_usage`, [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching all data from app_co_usage table:', err);
+            return;
+        }
+        console.log('\n--- App Co-Usage Table Contents ---');
+        rows.forEach((row) => {
+            console.log(`ID: ${row.id}, App1: ${row.app1_name}, App2: ${row.app2_name}, Duration: ${row.co_usage_duration}ms, Date: ${row.date}`);
         });
         console.log('-------------------------\n');
     });

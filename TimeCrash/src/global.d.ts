@@ -18,6 +18,14 @@ interface DailyAppStats {
     totalActiveDuration: number;
 }
 
+interface AppCoUsage {
+    app1_name: string;
+    app1_exePath: string;
+    app2_name: string;
+    app2_exePath: string;
+    co_usage_duration: number;
+    date: string;
+}
 
 interface Window {
     api: {
@@ -28,5 +36,7 @@ interface Window {
         saveSettings: (settings: PrivacySettings) => Promise<void>;
         getAvailableDates: () => Promise<string[]>;
         getDailyAppStats: (date: string) => Promise<DailyAppStats[]>;
+        getCoUsageStats: (date: string) => Promise<AppCoUsage[]>;
+        cleanCoUsage: () => Promise<void>;
     };
 }

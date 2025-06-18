@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const appUsageList = document.getElementById("app-stats");
     const dateSelector = document.getElementById('date-selector');
     const historyAppStatsList = document.getElementById('history-app-stats');
+    const coUsageStatsList = document.getElementById('co-usage-stats');
     const trackWindowTitlesCheckbox = document.getElementById('trackWindowTitles');
     const trackExecutablePathsCheckbox = document.getElementById('trackExecutablePaths');
     const saveInitialSettingsButton = document.getElementById('saveInitialSettings');
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("window.api is not defined - check preload script");
         if (appUsageList) appUsageList.innerHTML = "<li>Error: API not loaded</li>";
         if (historyAppStatsList) historyAppStatsList.innerHTML = "<li>Error: API not loaded</li>";
+        if (coUsageStatsList) coUsageStatsList.innerHTML = "<li>Error: API not loaded</li>";
         return;
     }
 
@@ -70,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <div class="activity-ring-container">
                 <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="transform -rotate-90">
-                    <!-- Background ring (total open duration) -->
                     <circle
                         class="activity-ring-background"
                         stroke-width="${strokeWidth}"
@@ -79,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         cx="${size / 2}"
                         cy="${size / 2}"
                     />
-                    <!-- Foreground ring (active duration) -->
                     <circle
                         class="activity-ring-foreground"
                         stroke-width="${strokeWidth}"
@@ -141,6 +141,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="app-diagrams-container">
                     ${activityRingHtml}
                     ${diagramHtml}
+                </div>
+            `;
+            targetListElement.appendChild(listItem);
+        });
+    }
+
+    function renderCoUsageStats(coUsages, targetListElement) {
+        if (!targetListElement) {
+            console.error("Target list element for co-usage is null.");
+            return;
+        }
+        targetListElement.innerHTML = '';
+
+        if (!coUsages || coUsages.length === 0) {
+            targetListElement.innerHTML = '<li style="text-align: center; color: var(--text-secondary);">No co-usage data for this period.</li>';
+            return;
+        }
+
+        coUsages.forEach(coUsage => {
+            const listItem = document.createElement('li');
+            listItem.className = 'app-stat-item';
+            listItem.innerHTML = `
+                <div class="app-details-container">
+                    <strong>${coUsage.app1_name} & ${coUsage.app2_name}</strong>
+                    <p>Co-used: ${formatDuration(coUsage.co_usage_duration)}</p>
                 </div>
             `;
             targetListElement.appendChild(listItem);
@@ -321,12 +346,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 option.value = '';
                 dateSelector.appendChild(option);
                 renderAppStats([], historyAppStatsList); 
+                renderCoUsageStats([], coUsageStatsList);
                 renderDailyOverview([]);
             }
         } catch (error) {
             console.error('Failed to load available dates:', error);
             dateSelector.innerHTML = '<option value="">Error loading dates</option>';
             renderAppStats([], historyAppStatsList);
+            renderCoUsageStats([], coUsageStatsList);
             renderDailyOverview([]);
         }
     }
@@ -334,13 +361,17 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadDailyAppStats(date) {
         console.log(`Loading daily app stats for date: ${date}`);
         try {
+            await window.api.cleanCoUsage(); // Clean low-duration pairs
             const dailyStats = await window.api.getDailyAppStats(date);
+            const coUsageStats = await window.api.getCoUsageStats(date);
             renderAppStats(dailyStats, historyAppStatsList);
+            renderCoUsageStats(coUsageStats, coUsageStatsList);
             renderDailyOverview(dailyStats);
         } catch (error) {
-            console.error(`Failed to get daily app stats for ${date}:`, error);
+            console.error(`Failed to get daily stats for ${date}:`, error);
             historyAppStatsList.innerHTML = "<li>Error loading daily stats.</li>";
-            renderDailyOverview([]); 
+            coUsageStatsList.innerHTML = "<li>Error loading co-usage stats.</li>";
+            renderDailyOverview([]);
         }
     }
 

@@ -36,3 +36,7 @@ Lots of designs changes. By lots, I mean LOTS. All that remains, is to include s
 June 17/2025:
 
 The app is finally finished. It took a lot of time, and I often forgot to update the README file—hence the multiple commits where I added it after already committing once. But at last, it’s done.
+
+June 18/2025:
+
+Co-Usage for most frequent app pairs added. FINAL TOUCH FOR THE APPLICATION PART. App is COMPLETELY finished now.

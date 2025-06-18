@@ -12,6 +12,14 @@ interface DailyAppStats {
     totalActiveDuration: number;
 }
 
+interface AppCoUsage {
+    app1_name: string;
+    app1_exePath: string;
+    app2_name: string;
+    app2_exePath: string;
+    co_usage_duration: number;
+    date: string;
+}
 
 contextBridge.exposeInMainWorld('api', {
     logActivity: (
@@ -76,6 +84,24 @@ contextBridge.exposeInMainWorld('api', {
         return ipcRenderer.invoke('get-daily-app-stats', date)
             .catch(error => {
                 console.error(`Error in getDailyAppStats for date ${date}:`, error);
+                throw error;
+            });
+    },
+
+    getCoUsageStats: (date: string): Promise<AppCoUsage[]> => {
+        console.log(`Invoking get-co-usage-stats for date: ${date}`);
+        return ipcRenderer.invoke('get-co-usage-stats', date)
+            .catch(error => {
+                console.error(`Error in getCoUsageStats for date ${date}:`, error);
+                throw error;
+            });
+    },
+
+    cleanCoUsage: (): Promise<void> => {
+        console.log('Invoking clean-co-usage');
+        return ipcRenderer.invoke('clean-co-usage')
+            .catch(error => {
+                console.error('Error in cleanCoUsage:', error);
                 throw error;
             });
     }

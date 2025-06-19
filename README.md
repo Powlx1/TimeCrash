@@ -40,3 +40,7 @@ The app is finally finished. It took a lot of time, and I often forgot to update
 June 18/2025:
 
 Co-Usage for most frequent app pairs added. FINAL TOUCH FOR THE APPLICATION PART. App is COMPLETELY finished now.
+
+June 19/2025:
+
+Did some final touches to the app, put in one last tab so things aren't cluttered/confusing. FINAL version for real this time.

@@ -17,6 +17,7 @@
             <button class="tablinks active" data-tab="Settings">Settings</button>
             <button class="tablinks" data-tab="Tracking">Live Tracking</button>
             <button class="tablinks" data-tab="History">History</button>
+            <button class="tablinks" data-tab="CoUsage">Co-Usage</button>
         </div>
 
         <div id="Settings" class="tabcontent active">
@@ -45,8 +46,8 @@
 
         <div id="History" class="tabcontent">
             <h2>Historical Usage Data</h2>
-            <label for="date-selector">Select a date:</label>
-            <select id="date-selector">
+            <label for="date-selector-history">Select a date:</label>
+            <select id="date-selector-history">
                 <option>Loading dates...</option>
             </select>
             <div class="diagrams-section">
@@ -59,9 +60,16 @@
                     <p>Total Active: <span id="total-active-duration"></span></p>
                 </div>
             </div>
-            <h3>Most Co-Used Applications</h3>
-            <ul id="co-usage-stats"></ul>
             <ul id="history-app-stats"></ul>
+        </div>
+
+        <div id="CoUsage" class="tabcontent">
+            <h2>Co-Used Applications</h2>
+            <label for="date-selector-cousage">Select a date:</label>
+            <select id="date-selector-cousage">
+                <option>Loading dates...</option>
+            </select>
+            <ul id="co-usage-stats"></ul>
         </div>
     </div>
 

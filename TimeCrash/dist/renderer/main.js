@@ -5,7 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("window.api:", window.api);
 
     const appUsageList = document.getElementById("app-stats");
-    const dateSelector = document.getElementById('date-selector');
+    const dateSelectorHistory = document.getElementById('date-selector-history');
+    const dateSelectorCoUsage = document.getElementById('date-selector-cousage');
     const historyAppStatsList = document.getElementById('history-app-stats');
     const coUsageStatsList = document.getElementById('co-usage-stats');
     const trackWindowTitlesCheckbox = document.getElementById('trackWindowTitles');
@@ -197,115 +198,133 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderLiveTimelineChart(apps) {
-        const ctx = document.getElementById('activityChart')?.getContext('2d');
-        if (!ctx) {
-            console.error("Canvas element for activityChart not found.");
-            return;
+    const ctx = document.getElementById('activityChart')?.getContext('2d');
+    if (!ctx) {
+        console.error("Canvas element for activityChart not found.");
+        return;
+    }
+
+    const aggregatedApps = apps.reduce((acc, app) => {
+        const key = app.name || 'Unknown';
+        if (!acc[key]) {
+            acc[key] = { name: key, totalOpenDuration: 0, totalActiveDuration: 0 };
         }
+        acc[key].totalOpenDuration += app.totalOpenDuration || 0;
+        acc[key].totalActiveDuration += app.totalActiveDuration || 0;
+        return acc;
+    }, {});
 
-        apps.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const appList = Object.values(aggregatedApps).sort((a, b) => 
+        (b.totalOpenDuration || 0) - (a.totalOpenDuration || 0)
+    );
 
-        const appNames = apps.map(app => app.name || 'Unknown');
-        const openDurations = apps.map(app => app.totalOpenDuration);
-        const activeDurations = apps.map(app => app.totalActiveDuration);
+    const appNames = appList.map(app => app.name);
+    const openDurations = appList.map(app => app.totalOpenDuration);
+    const activeDurations = appList.map(app => app.totalActiveDuration);
 
-        if (activityChart) {
-            activityChart.data.labels = appNames;
-            activityChart.data.datasets[0].data = openDurations;
-            activityChart.data.datasets[1].data = activeDurations;
-            activityChart.update();
-        } else {
-            activityChart = new Chart(ctx, {
-                type: 'bar', 
-                data: {
-                    labels: appNames,
-                    datasets: [
-                        {
-                            label: 'Total Open Duration',
-                            data: openDurations,
-                            backgroundColor: 'rgba(0, 123, 255, 0.7)', 
-                            borderColor: 'rgba(0, 86, 179, 1)', 
-                            borderWidth: 1
+    if (activityChart) {
+        activityChart.data.labels = appNames;
+        activityChart.data.datasets[0].data = openDurations;
+        activityChart.data.datasets[1].data = activeDurations;
+        activityChart.update();
+    } else {
+        activityChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: appNames,
+                datasets: [
+                    {
+                        label: 'Total Open Duration',
+                        data: openDurations,
+                        backgroundColor: 'rgba(0, 123, 255, 0.7)',
+                        borderColor: 'rgba(0, 86, 179, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Total Active Duration',
+                        data: activeDurations,
+                        backgroundColor: 'rgba(40, 167, 69, 0.7)',
+                        borderColor: 'rgba(29, 115, 48, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                aspectRatio: 2,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        stacked: false,
+                        title: {
+                            display: true,
+                            text: 'Duration',
+                            color: '#FFFFFF'
                         },
-                        {
-                            label: 'Total Active Duration',
-                            data: activeDurations,
-                            backgroundColor: 'rgba(40, 167, 69, 0.7)',
-                            borderColor: 'rgba(29, 115, 48, 1)', 
-                            borderWidth: 1
-                        }
-                    ]
-                },
-                options: {
-                    indexAxis: 'y', 
-                    responsive: true,
-                    maintainAspectRatio: false, 
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            stacked: false, 
-                            title: {
-                                display: true,
-                                text: 'Duration',
-                                color: '#FFFFFF' 
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return formatDuration(value);
                             },
-                            ticks: {
-                                callback: function(value, index, values) {
-                                    return formatDuration(value); 
-                                },
-                                color: '#FFFFFF' 
-                            },
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)' 
-                            }
+                            color: '#FFFFFF'
                         },
-                        y: {
-                            stacked: false,
-                            title: {
-                                display: true,
-                                text: 'Application',
-                                color: '#FFFFFF'
-                            },
-                            ticks: {
-                                color: '#FFFFFF'
-                            },
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)' 
-                            }
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
                         }
                     },
-                    plugins: {
-                        legend: {
+                    y: {
+                        stacked: false,
+                        title: {
                             display: true,
-                            position: 'top',
-                            labels: {
-                                color: '#FFFFFF' 
-                            }
+                            text: 'Application',
+                            color: '#FFFFFF'
                         },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed.x !== null) {
-                                        label += formatDuration(context.parsed.x);
-                                    }
-                                    return label;
-                                }
+                        ticks: {
+                            color: '#FFFFFF',
+                            font: {
+                                size: 12,
+                                family: 'Roboto'
                             },
-                            titleColor: '#FFFFFF',
-                            bodyColor: '#FFFFFF', 
-                            borderColor: 'rgba(255, 255, 255, 0.2)',
-                            borderWidth: 1,
-                            backgroundColor: 'rgba(0, 0, 0, 0.7)' 
+                            padding: 5,
+                            maxRotation: 45,
+                            minRotation: 0,
+                            autoSkip: false
                         }
                     }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: '#FFFFFF'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.x !== null) {
+                                    label += formatDuration(context.parsed.x);
+                                }
+                                return label;
+                            }
+                        },
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#FFFFFF',
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                        borderWidth: 1,
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)'
+                    }
                 }
-            });
-        }
+            }
+        });
     }
+}
 
     function updateStats() {
         console.log("Calling getAppStats for Live Tracking");
@@ -317,61 +336,79 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => console.error('Failed to get live app stats:', error));
     }
 
-    async function populateDateDropdown() {
-        console.log("Attempting to populate date dropdown...");
-        if (!dateSelector) {
-            console.error("date-selector element not found. This is a critical error and should not happen if HTML is correct.");
+    async function populateDateDropdown(selector, type) {
+        console.log(`Attempting to populate ${type} date dropdown...`);
+        if (!selector) {
+            console.error(`${type} date-selector element not found.`);
             return;
         }
         try {
             const dates = await window.api.getAvailableDates();
-            console.log("Dates received for dropdown:", dates);
+            console.log(`Dates received for ${type} dropdown:`, dates);
 
-            dateSelector.innerHTML = '';
+            selector.innerHTML = '';
 
             if (dates && dates.length > 0) {
                 dates.forEach(date => {
                     const option = document.createElement('option');
                     option.value = date;
                     option.textContent = date;
-                    dateSelector.appendChild(option);
+                    selector.appendChild(option);
                 });
 
-                dateSelector.value = dates[0];
-                await loadDailyAppStats(dates[0]);
+                selector.value = dates[0];
+                if (type === 'history') {
+                    await loadDailyAppStats(dates[0]);
+                } else if (type === 'cousage') {
+                    await loadCoUsageStats(dates[0]);
+                }
             } else {
-                console.log("No dates available from database. Displaying default option.");
+                console.log(`No dates available for ${type} dropdown.`);
                 const option = document.createElement('option');
                 option.textContent = 'No usage data for specific dates available.';
                 option.value = '';
-                dateSelector.appendChild(option);
-                renderAppStats([], historyAppStatsList); 
-                renderCoUsageStats([], coUsageStatsList);
-                renderDailyOverview([]);
+                selector.appendChild(option);
+                if (type === 'history') {
+                    renderAppStats([], historyAppStatsList);
+                    renderDailyOverview([]);
+                } else if (type === 'cousage') {
+                    renderCoUsageStats([], coUsageStatsList);
+                }
             }
         } catch (error) {
-            console.error('Failed to load available dates:', error);
-            dateSelector.innerHTML = '<option value="">Error loading dates</option>';
-            renderAppStats([], historyAppStatsList);
-            renderCoUsageStats([], coUsageStatsList);
-            renderDailyOverview([]);
+            console.error(`Failed to load available dates for ${type}:`, error);
+            selector.innerHTML = '<option value="">Error loading dates</option>';
+            if (type === 'history') {
+                renderAppStats([], historyAppStatsList);
+                renderDailyOverview([]);
+            } else if (type === 'cousage') {
+                renderCoUsageStats([], coUsageStatsList);
+            }
         }
     }
 
     async function loadDailyAppStats(date) {
         console.log(`Loading daily app stats for date: ${date}`);
         try {
-            await window.api.cleanCoUsage();
             const dailyStats = await window.api.getDailyAppStats(date);
-            const coUsageStats = await window.api.getCoUsageStats(date);
             renderAppStats(dailyStats, historyAppStatsList);
-            renderCoUsageStats(coUsageStats, coUsageStatsList);
             renderDailyOverview(dailyStats);
         } catch (error) {
             console.error(`Failed to get daily stats for ${date}:`, error);
             historyAppStatsList.innerHTML = "<li>Error loading daily stats.</li>";
-            coUsageStatsList.innerHTML = "<li>Error loading co-usage stats.</li>";
             renderDailyOverview([]);
+        }
+    }
+
+    async function loadCoUsageStats(date) {
+        console.log(`Loading co-usage stats for date: ${date}`);
+        try {
+            await window.api.cleanCoUsage();
+            const coUsageStats = await window.api.getCoUsageStats(date);
+            renderCoUsageStats(coUsageStats, coUsageStatsList);
+        } catch (error) {
+            console.error(`Failed to get co-usage stats for ${date}:`, error);
+            coUsageStatsList.innerHTML = "<li>Error loading co-usage stats.</li>";
         }
     }
 
@@ -395,6 +432,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (tabName === 'History') {
                 console.log('Dispatching loadHistory event');
                 window.dispatchEvent(new Event('loadHistory'));
+            } else if (tabName === 'CoUsage') {
+                console.log('Dispatching loadCoUsage event');
+                window.dispatchEvent(new Event('loadCoUsage'));
             }
         } else {
             console.error(`Tab content or link not found for: ${tabName}`);
@@ -412,7 +452,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('loadHistory', () => {
         console.log("Event 'loadHistory' received. History tab opened, populating date dropdown.");
-        populateDateDropdown();
+        populateDateDropdown(dateSelectorHistory, 'history');
+    });
+
+    window.addEventListener('loadCoUsage', () => {
+        console.log("Event 'loadCoUsage' received. Co-Usage tab opened, populating date dropdown.");
+        populateDateDropdown(dateSelectorCoUsage, 'cousage');
     });
 
     const tabLinks = document.querySelectorAll('.tablinks');
@@ -474,11 +519,19 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("saveInitialSettings button not found.");
     }
 
-    if (dateSelector) {
-        dateSelector.addEventListener('change', (event) => {
+    if (dateSelectorHistory) {
+        dateSelectorHistory.addEventListener('change', (event) => {
             const selectedDate = event.target.value;
-            console.log(`Dropdown date selected: ${selectedDate}`);
+            console.log(`History dropdown date selected: ${selectedDate}`);
             loadDailyAppStats(selectedDate);
+        });
+    }
+
+    if (dateSelectorCoUsage) {
+        dateSelectorCoUsage.addEventListener('change', (event) => {
+            const selectedDate = event.target.value;
+            console.log(`Co-Usage dropdown date selected: ${selectedDate}`);
+            loadCoUsageStats(selectedDate);
         });
     }
 });

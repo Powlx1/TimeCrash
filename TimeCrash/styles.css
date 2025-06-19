@@ -303,14 +303,15 @@ button:active {
     background-color: #1e7e34;
 }
 
-#History label[for="date-selector"] {
+#History label[for="date-selector-history"] {
     font-size: 1.1em;
     color: var(--text-primary);
     margin-bottom: var(--spacing-unit);
     display: block;
 }
 
-#date-selector {
+#date-selector-history,
+#date-selector-cousage {
     background-color: var(--bg-light);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -333,12 +334,14 @@ button:active {
     margin-bottom: calc(var(--spacing-unit) * 1.5);
 }
 
-#date-selector:focus {
+#date-selector-history:focus,
+#date-selector-cousage:focus {
     border-color: var(--accent-blue);
     box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
 }
 
-#date-selector option {
+#date-selector-history option,
+#date-selector-cousage option {
     background-color: var(--bg-medium);
     color: var(--text-primary);
 }
@@ -416,7 +419,6 @@ button:active {
 }
 
 #live-timeline-chart {
-    height: 300px;
     width: 100%;
     background-color: var(--bg-medium);
     padding: calc(var(--spacing-unit) * 1.5);
@@ -427,11 +429,15 @@ button:active {
     justify-content: center;
     align-items: center;
     margin-bottom: calc(var(--spacing-unit) * 2);
+    min-height: 200px; 
+    max-height: 60vh; 
+    overflow-y: auto; 
+    flex-grow: 1; 
 }
 
 #activityChart {
     width: 100% !important;
-    height: 100% !important;
+    height: 100% !important; 
 }
 
 .chartjs-render-monitor canvas {
